@@ -1,0 +1,20 @@
+[
+  {
+    "key": "button_1",
+    "action": "ui.open_url",
+    "payload": {"url": "https://example.com"},
+    "indicator_key": null
+  },
+  {
+    "key": "button_2",
+    "action": "agent.start",
+    "payload": {"agent_id": "mock-1"},
+    "indicator_key": null
+  },
+  {
+    "key": "button_3",
+    "action": "lights.turn_on",
+    "payload": {"room": "living_room"},
+    "indicator_key": "lights.living_room.state"
+  }
+]

@@ -1,0 +1,20 @@
+# Deckhand Configuration File Example
+#
+# Copy this file to config.toml and customize as needed.
+# Or set DECKHAND_CONFIG_FILE environment variable to point to your config file.
+
+[service]
+name = "deckhand"
+host = "127.0.0.1"
+port = 8000
+
+[plugins]
+# List of plugin module paths to load
+modules = [
+  "deckhand.plugins.builtin",
+  # "my_custom_plugin",
+]
+
+[paths]
+# Path to button bindings JSON file (optional)
+bindings_file = "bindings.json"

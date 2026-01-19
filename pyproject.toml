@@ -1,0 +1,22 @@
+[project]
+name = "deckhand"
+version = "1.0.0"
+description = "Local-first control plane for Stream Deck and other thin clients"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "websockets",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

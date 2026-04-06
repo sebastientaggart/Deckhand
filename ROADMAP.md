@@ -1,29 +1,32 @@
 # Deckhand Roadmap
 
-Goal: ship a small, stable v1 for local Stream Deck control with plugins, actions, signals, and state.
+## Completed: OpenDeck Integration (v0.1)
 
-## Next Steps (Pre-v1)
-- Define a stable event schema (versioned envelope, required fields, error shape).
-- Add discovery metadata for actions/signals (name, description, payload schema).
-- Add a minimal plugin author guide and example plugin template.
-- Add a Stream Deck client template (bindings, indicators, and open_url handler).
-- Add tests for action routing, signal handling, and state TTL behavior.
-- Add a small config story (bindings, plugins, and service settings via file/env).
+- [x] Deckhand Core: stable HTTP + WebSocket API
+- [x] Plugin system with action/signal/state registries
+- [x] Agent abstraction with lifecycle management
+- [x] Event bus with versioned envelopes
+- [x] OpenDeck plugin bridge (plugin.py, bridge.py)
+- [x] Agent Status action (monitor + interact with agents)
+- [x] Data Widget action (display live state on buttons)
+- [x] Property Inspector UIs for both actions
+- [x] Cross-platform audio notifications
+- [x] Plugin assets (icons, sounds)
+- [x] End-to-end plugin tests
 
-## v1 Scope
-- Local HTTP + WebSocket API stable and documented.
-- Plugin loader for local Python modules.
-- Webhook-based signal ingestion.
-- Button bindings with indicator state updates.
-- Basic reliability (graceful shutdown, error events, validation errors).
+## Completed: Hardening (v0.2)
 
-## Out of Scope for v1
-- Auth, persistence, multi-user support.
-- Cloud orchestration or remote hosting.
-- Native Stream Deck SDK plugin.
-- Advanced scheduling, queues, or workflows.
+- [x] Reconnection logic with exponential backoff for Deckhand Core WebSocket
+- [x] Property Inspector: live state key autocomplete for Data Widget
+- [x] Additional display formats (percentage, boolean, number, currency)
+- [x] Error state recovery (auto-retry failed agent starts with configurable attempts)
+- [x] Plugin bridge diagnostics (event counts, connection status, error tracking)
 
-## Release Checklist
-- Run tests and verify example flows end-to-end.
-- Freeze API names and event schema.
-- Tag `v1.0.0` and publish release notes.
+## Completed: Extended Actions & Features
+
+- [x] Signal Trigger action (fire a Deckhand signal on button press)
+- [x] Run Action button (execute any Deckhand action with fixed payload)
+- [x] Multi-agent dashboard (summary of all agents on one button)
+- [x] Remote Deckhand Core support (DECKHAND_URL env var)
+- [x] State persistence (JSON file, survives service restarts)
+- [x] API key authentication (optional, for HTTP and WebSocket)

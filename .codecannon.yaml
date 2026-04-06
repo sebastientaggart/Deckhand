@@ -1,0 +1,120 @@
+# .codecannon.yaml — project configuration for Code Cannon skill sync
+#
+# Copy this file to your project root as .codecannon.yaml and customize.
+# Run: CodeCannon/sync.sh
+#
+# See CodeCannon/config.schema.yaml for documentation on each placeholder.
+
+# Which agent adapters to generate skills for.
+# Available: claude, cursor, gemini, codex
+adapters:
+  - claude
+  - cursor
+#  - gemini
+#  - codex
+
+# Placeholder values substituted into skill files during sync.
+# Remove any you don't need; sync.sh will warn about unresolved placeholders.
+config:
+
+  # ── Workflow profile ─────────────────────────────────────────────────────────
+  # Run /setup for a guided walkthrough, or configure manually below.
+  # Common profiles:
+  #   Lightweight: BRANCH_DEV empty, REVIEW_GATE: advisory, QA labels empty
+  #   Standard:    BRANCH_DEV set, REVIEW_GATE: ai, QA labels optional
+  #   Governed:    BRANCH_DEV set, REVIEW_GATE: ai, QA labels set, reviewers set
+
+  # ── Branch model ─────────────────────────────────────────────────────────────
+  # Trunk-based (feature → main): leave BRANCH_DEV and BRANCH_TEST empty.
+  # Two-branch (feature → dev → main): set BRANCH_DEV.
+  # Three-branch (feature → dev → test → main): set both BRANCH_DEV and BRANCH_TEST.
+  BRANCH_PROD: main
+  # BRANCH_DEV: development
+  # BRANCH_TEST: staging
+
+  # ── Review gate ──────────────────────────────────────────────────────────────
+  # Controls whether /submit-for-review spawns an AI code review before merging.
+  # "ai" (default): review verdict determines merge/reject.
+  # "advisory": review is posted but doesn't block merge.
+  # "off": no review agent — /submit-for-review merges after CHECK_CMD passes.
+  REVIEW_GATE: "ai"
+
+  # ── Workflow commands ────────────────────────────────────────────────────────
+  DEV_CMD: make dev
+  ABANDON_CMD: make abandon
+  CHECK_CMD: make check
+  MERGE_CMD: make merge
+  DEPLOY_PREVIEW_CMD: make deploy-preview
+  DEPLOY_PROD_CMD: make deploy-prod
+
+  # ── Version bumping ──────────────────────────────────────────────────────────
+  VERSION_READ_CMD: "make version"
+  BUMP_PATCH_CMD: make bump-patch
+  BUMP_MINOR_CMD: make bump-minor
+  BUMP_MAJOR_CMD: make bump-major
+  SET_VERSION_CMD: "make set-version V="
+
+  # ── Paths ────────────────────────────────────────────────────────────────────
+  REVIEW_AGENT_PROMPT: .claude/review-agent-prompt.md
+
+  # ── GitHub / PR settings ─────────────────────────────────────────────────────
+  # Greenfield quick baseline (PM/BA friendly):
+  #   1) Labels: bug, enhancement, chore, documentation, ready-for-qa, qa-passed, qa-failed
+  #   2) Put work-intake labels in TICKET_LABELS so /start can triage new issues consistently.
+  #   3) Set QA_READY_LABEL / QA_PASSED_LABEL / QA_FAILED_LABEL if you want /qa status labeling.
+  #   4) Set DEFAULT_MILESTONE only when you want all /start tickets pinned by default
+  #      (for example "Sprint 12" or "Release 2026.04"); otherwise leave it unset for auto-detect.
+  #
+  # Comma-separated GitHub handles or team slugs assigned as PR reviewers by /submit-for-review.
+  # Accepts usernames (@alice), team slugs (org/team-name), or combinations.
+  # Leave empty (or omit) to rely solely on CODEOWNERS or manual assignment.
+  DEFAULT_REVIEWERS: "@sebastientaggart"
+
+  # Pool of label names /start may apply to new issues (comma-separated).
+  # The agent selects 1–3 labels from this pool based on the task content.
+  # It does not apply all labels blindly — only those that genuinely fit.
+  # Per-invocation --label flag bypasses pool selection and uses the value verbatim.
+  # Tip: run /setup to populate this from your repo's existing GitHub labels.
+  TICKET_LABELS: "bug,documentation,duplicate,enhancement,good first issue,help wanted,invalid,question,wontfix,security"
+
+  # Controls whether the agent may create new GitHub labels when none in TICKET_LABELS fit.
+  # "false" (default): agent is constrained to the pool; omits --label if nothing fits.
+  # "true": agent may run `gh label create <name> --color <hex>` before applying.
+  TICKET_LABEL_CREATION_ALLOWED: "false"
+
+  # Milestone override for new issues created by /start.
+  # If set, /start uses this value without querying GitHub.
+  # If empty (or omitted), /start auto-detects: uses the single open milestone silently,
+  # prompts when multiple exist, or skips if none exist.
+  # Accepts names ("Sprint 4") or numbers (12). Names are case-sensitive on GitHub.
+  # Per-invocation --milestone flag takes precedence over this value.
+  # Note: project board placement (gh project item-add) is not handled by /start — manual step.
+  # DEFAULT_MILESTONE: "Sprint 4"
+
+  # Label applied by /submit-for-review when a feature merges to the integration branch.
+  # Signals that the feature is deployed to preview and ready for QA.
+  # /qa uses this label to build the QA queue. Leave empty to disable the QA label workflow.
+  # QA_READY_LABEL: "ready-for-qa"
+
+  # Label applied by /qa when a feature passes QA review.
+  # Leave empty to skip label application on pass.
+  # QA_PASSED_LABEL: "qa-passed"
+
+  # Label applied by /qa when a feature fails QA review.
+  # Leave empty to skip label application on fail.
+  # QA_FAILED_LABEL: "qa-failed"
+
+  # ── Review agent conventions ──────────────────────────────────────────────────
+  # These values are injected into the review agent prompt at sync time.
+  # Use YAML block scalars (|) for multi-line content. HTML comments are invisible
+  # to agents, so the default values below are silent no-ops until you fill them in.
+  #
+  # PLATFORM_COMPLIANCE_NOTES: |
+  #   - Postgres: use parameterized queries via the ORM; never raw string interpolation
+  #   - Redis: TTLs required on all keys written in request handlers
+  #   - Next.js: server components must not import client-only modules
+  #
+  # CONVENTIONS_NOTES: |
+  #   - API logic in services/, UI in app/ — no business logic in components
+  #   - Use the design system tokens — no hardcoded hex values
+  #   - Feature flags via the flags/ module only; no ad-hoc env var checks

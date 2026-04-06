@@ -1,0 +1,84 @@
+/* OpenDeck Property Inspector stylesheet */
+:root {
+  --bg-color: #2d2d2d;
+  --text-color: #d8d8d8;
+  --input-bg: #3b3b3b;
+  --input-border: #555;
+  --accent-color: #0078d7;
+  --label-width: 90px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px;
+}
+
+.sdpi-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sdpi-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sdpi-item-label {
+  min-width: var(--label-width);
+  font-weight: 500;
+  color: #aaa;
+  text-align: right;
+}
+
+.sdpi-item-value {
+  flex: 1;
+}
+
+select,
+input[type="text"] {
+  width: 100%;
+  padding: 4px 8px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  color: var(--text-color);
+  font-size: 12px;
+}
+
+select:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent-color);
+}
+
+.sdpi-heading {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #888;
+  padding-bottom: 4px;
+  margin-top: 4px;
+  border-bottom: 1px solid #444;
+}
+
+.sdpi-info {
+  font-size: 11px;
+  color: #888;
+  padding: 4px 0;
+}

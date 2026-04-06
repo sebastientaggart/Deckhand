@@ -1,147 +1,133 @@
 # Deckhand
 
-Deckhand is a local-first control plane for Stream Deck and other thin clients. The UI is a client;
-orchestration lives in a local service. This repo scaffolds the core service, agent abstraction,
-and a plugin-friendly action/signal/state surface.
+Deckhand is a local-first orchestration service for Stream Deck hardware. It pairs with [OpenDeck](https://github.com/niclasmattsson/OpenDeck) — OpenDeck handles hardware, buttons, and profiles; Deckhand adds agent monitoring, live data widgets, and signal-driven automation.
 
-## Features
+## Install
 
-- **Stable HTTP + WebSocket API**: RESTful endpoints with real-time event streaming
-- **Plugin System**: Extend functionality with Python modules
-- **Action & Signal Registries**: Named commands and webhook ingestion with metadata
-- **State Store**: Key-value store with TTL for UI indicators
-- **Event Bus**: Versioned event envelope with source attribution
-- **Configuration Support**: TOML config files and environment variables
-- **Comprehensive Documentation**: Guides for plugin authors and client developers
-
-## Architecture
-
-- **Thin Client, Smart Core**: UI clients are dumb terminals; orchestration lives in service
-- **Bidirectional by Default**: Events streamed via WebSocket; no polling required
-- **Plugin-Friendly**: Extensible via Python modules
-- **Local-First**: Service runs locally; prefer LAN/local APIs
-- **Composable Actions**: Buttons trigger named actions; signals ingest external events
-
-## Quickstart
-
-### Installation
+**Prerequisites:** Python 3.11+, [uv](https://docs.astral.sh/uv/) (recommended) or pip.
 
 ```bash
-# Using uv (recommended)
-uv sync
+git clone <this-repo> && cd Deckhand
+uv sync            # installs all dependencies into .venv
+```
+
+<details><summary>pip alternative</summary>
+
+```bash
+pip install -e ".[test]"
+```
+</details>
+
+## Quick start (no Stream Deck needed)
+
+You can try Deckhand without any hardware — the Core service runs standalone with two mock agents.
+
+**1. Start the service:**
+
+```bash
 uv run uvicorn deckhand.main:app --app-dir src --reload
-
-# Or using pip
-pip install -e .
-uvicorn deckhand.main:app --app-dir src --reload
 ```
 
-### Configuration
-
-Create a `config.toml` file (see `config.example.toml`):
-
-```toml
-[service]
-host = "127.0.0.1"
-port = 8000
-
-[plugins]
-modules = ["deckhand.plugins.builtin"]
-
-[paths]
-bindings_file = "bindings.json"
-```
-
-Or use environment variables:
+**2. List the mock agents:**
 
 ```bash
-export DECKHAND_HOST=0.0.0.0
-export DECKHAND_PORT=8080
-export DECKHAND_PLUGINS=deckhand.plugins.builtin,my_plugin
+curl http://127.0.0.1:8000/agents
 ```
 
-### Test the API
+You should see `mock-1` and `mock-2`, both `"status": "idle"`.
+
+**3. Start an agent and watch it work:**
 
 ```bash
-# List available actions
-curl http://127.0.0.1:8000/actions
+# Start mock-1 — it will run for ~0.5s, then wait for input
+curl -X POST http://127.0.0.1:8000/agents/mock-1/start
 
-# Execute an action
-curl -X POST http://127.0.0.1:8000/actions/ui.open_url \
+# Check status (should be "awaiting_input" after ~0.5s)
+curl http://127.0.0.1:8000/agents
+
+# Provide input — agent finishes and returns to idle
+curl -X POST http://127.0.0.1:8000/agents/mock-1/input \
+  -H "Content-Type: application/json" -d '{"text": "hello"}'
+```
+
+**4. Try the state store:**
+
+```bash
+# Send a signal that writes state with a 30s TTL
+curl -X POST http://127.0.0.1:8000/signals/webhook/camera.motion \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com"}'
+  -d '{"key": "camera.front_door.motion", "active": true, "ttl_seconds": 30}'
+
+# Read it back
+curl http://127.0.0.1:8000/state/camera.front_door.motion
 ```
+
+**5. Run the tests:**
+
+```bash
+uv run pytest tests/ -v --asyncio-mode=auto
+```
+
+All 39 Core tests should pass.
+
+## Connect to a Stream Deck
+
+Once you're comfortable with the API, add hardware via OpenDeck:
+
+**1. Install [OpenDeck](https://github.com/niclasmattsson/OpenDeck)** for your platform.
+
+**2. Install the Deckhand plugin:**
+
+```bash
+# macOS
+cp -r opendeck-plugin/com.deckhand.plugin.sdPlugin \
+  ~/Library/Application\ Support/OpenDeck/Plugins/
+
+# Linux
+cp -r opendeck-plugin/com.deckhand.plugin.sdPlugin \
+  ~/.config/OpenDeck/Plugins/
+```
+
+**3. Install the plugin's Python dependencies** (needed once):
+
+```bash
+pip install aiohttp websockets
+```
+
+**4. Restart OpenDeck.** A "Deckhand" category appears with five actions:
+
+| Action | What it does |
+|--------|-------------|
+| **Agent Status** | Monitor + interact with an agent (start/cancel/input) |
+| **Data Widget** | Display a live state value on a button |
+| **Run Action** | Execute any Deckhand action on press |
+| **Signal Trigger** | Fire a Deckhand signal on press |
+| **Agent Dashboard** | Show a summary of all agents on one button |
+
+Drag **Agent Status** onto a button, pick `mock-1` in the Property Inspector, and press it to start the agent.
+
+## Configuration
+
+Copy `config.example.toml` to `config.toml`, or use environment variables:
+
+| Setting | Env var | Default |
+|---------|---------|---------|
+| Listen host | `DECKHAND_HOST` | `127.0.0.1` |
+| Listen port | `DECKHAND_PORT` | `8000` |
+| Plugin modules | `DECKHAND_PLUGINS` | `deckhand.plugins.builtin` |
+| State persistence file | `DECKHAND_STATE_FILE` | none (in-memory) |
+| API key (optional auth) | `DECKHAND_API_KEY` | none (disabled) |
+| Config file path | `DECKHAND_CONFIG_FILE` | none |
+
+The OpenDeck plugin reads `DECKHAND_URL` (default `http://localhost:8000`) and `DECKHAND_API_KEY` from the environment.
 
 ## Documentation
 
-- **[Plugin Guide](docs/PLUGIN_GUIDE.md)**: How to create plugins with actions and signals
-- **[Stream Deck Client Guide](docs/STREAMDECK_CLIENT.md)**: Integration guide for client developers
-- **[API Reference](docs/API.md)**: Complete HTTP API documentation
-- **[Event Schema](docs/EVENTS.md)**: Event types and schema reference
-
-## Examples
-
-- **[Example Plugin](examples/example_plugin.py)**: Complete plugin with actions, signals, and state
-- **[Stream Deck Client Template](examples/streamdeck_client_template.py)**: Standalone client implementation
-- **[Bindings Configuration](examples/streamdeck_bindings.json)**: Example button bindings
-
-## Plugin Development
-
-Create a plugin by defining a `register()` function:
-
-```python
-from deckhand.plugins.registry import PluginRegistry
-
-def register(registry: PluginRegistry) -> None:
-    async def my_action(payload: dict[str, object]) -> None:
-        room = payload.get("room")
-        if not room:
-            raise ValueError("room is required")
-        await registry.state.set_state(
-            f"lights.{room}.state",
-            {"on": True},
-            source={"kind": "action", "id": "lights.turn_on"},
-        )
-    
-    registry.actions.register(
-        "lights.turn_on",
-        my_action,
-        description="Turn on lights in a room",
-        payload_schema={"room": {"type": "string", "required": True}},
-    )
-```
-
-See [Plugin Guide](docs/PLUGIN_GUIDE.md) for complete documentation.
-
-## Client Development
-
-Clients connect via HTTP (actions) and WebSocket (events):
-
-```python
-import asyncio
-import websockets
-import httpx
-
-# Execute action
-async with httpx.AsyncClient() as client:
-    await client.post("http://127.0.0.1:8000/actions/ui.open_url", json={"url": "https://example.com"})
-
-# Listen to events
-async with websockets.connect("ws://127.0.0.1:8000/events") as ws:
-    while True:
-        event = await ws.recv()
-        # Process event...
-```
-
-See [Stream Deck Client Guide](docs/STREAMDECK_CLIENT.md) for integration details.
-
-## Testing
-
-Run the test suite:
-
-```bash
-pytest tests/ -v --asyncio-mode=auto
-```
+- **[Plugin Guide](docs/PLUGIN_GUIDE.md)** — Extend Deckhand Core with custom actions and signals
+- **[OpenDeck Plugin](opendeck-plugin/README.md)** — Install and develop the OpenDeck bridge
+- **[API Reference](docs/API.md)** — HTTP API documentation
+- **[Event Schema](docs/EVENTS.md)** — Event types and schema reference
+- **[Example Plugin](examples/example_plugin.py)** — Complete plugin with actions, signals, and state
 
 ## License
 

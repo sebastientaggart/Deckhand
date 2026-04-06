@@ -1,13 +1,14 @@
 [project]
 name = "deckhand"
-version = "1.0.0"
-description = "Local-first control plane for Stream Deck and other thin clients"
+version = "0.1.0"
+description = "Local-first orchestration service for Stream Deck via OpenDeck"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
   "websockets",
+  "aiohttp",
 ]
 
 [project.optional-dependencies]

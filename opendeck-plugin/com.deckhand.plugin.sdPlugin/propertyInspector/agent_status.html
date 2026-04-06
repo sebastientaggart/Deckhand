@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Agent Status</title>
+  <link rel="stylesheet" href="sdpi.css" />
+</head>
+<body>
+  <div class="sdpi-wrapper">
+    <div class="sdpi-heading">Agent Configuration</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Agent</div>
+      <div class="sdpi-item-value">
+        <select id="agent_id">
+          <option value="">Loading...</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Sounds</div>
+      <div class="sdpi-item-value">
+        <label>
+          <input type="checkbox" id="sounds_enabled" checked />
+          Play audio notifications
+        </label>
+      </div>
+    </div>
+
+    <div class="sdpi-heading">Interaction</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Default Input</div>
+      <div class="sdpi-item-value">
+        <input type="text" id="default_input" placeholder="Text to send on input press" />
+      </div>
+    </div>
+
+    <div class="sdpi-info">
+      Press behavior: Idle &rarr; Start &bull; Running &rarr; Cancel &bull; Awaiting Input &rarr; Send default input &bull; Error &rarr; Restart
+    </div>
+
+    <div class="sdpi-heading">Error Recovery</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Auto-Retry</div>
+      <div class="sdpi-item-value">
+        <label>
+          <input type="checkbox" id="auto_retry" />
+          Automatically restart on error
+        </label>
+      </div>
+    </div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Max Retries</div>
+      <div class="sdpi-item-value">
+        <select id="retry_max">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let websocket = null;
+    let pluginUUID = null;
+    let actionInfo = null;
+    let settings = {};
+
+    function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfoStr) {
+      pluginUUID = uuid;
+      actionInfo = JSON.parse(actionInfoStr);
+      settings = actionInfo.payload.settings || {};
+
+      // Apply saved settings to UI
+      if (settings.sounds_enabled !== undefined) {
+        document.getElementById("sounds_enabled").checked = settings.sounds_enabled;
+      }
+      if (settings.default_input) {
+        document.getElementById("default_input").value = settings.default_input;
+      }
+      if (settings.auto_retry !== undefined) {
+        document.getElementById("auto_retry").checked = settings.auto_retry;
+      }
+      if (settings.retry_max !== undefined) {
+        document.getElementById("retry_max").value = String(settings.retry_max);
+      }
+
+      websocket = new WebSocket("ws://127.0.0.1:" + port);
+      websocket.onopen = function () {
+        websocket.send(JSON.stringify({ event: registerEvent, uuid: uuid }));
+        websocket.send(JSON.stringify({
+          event: "sendToPlugin",
+          action: actionInfo.action,
+          context: pluginUUID,
+          payload: { type: "getAgents" },
+        }));
+      };
+
+      websocket.onmessage = function (evt) {
+        var data = JSON.parse(evt.data);
+        if (data.event === "sendToPropertyInspector") {
+          handlePluginMessage(data.payload);
+        }
+      };
+    }
+
+    function handlePluginMessage(payload) {
+      if (payload.type === "agentList") {
+        populateAgentDropdown(payload.agents);
+      }
+    }
+
+    function populateAgentDropdown(agents) {
+      var select = document.getElementById("agent_id");
+      select.innerHTML = '<option value="">-- Select Agent --</option>';
+      agents.forEach(function (agent) {
+        var opt = document.createElement("option");
+        opt.value = agent.id;
+        opt.textContent = agent.id;
+        if (agent.id === settings.agent_id) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+    }
+
+    function saveSettings() {
+      settings.agent_id = document.getElementById("agent_id").value;
+      settings.sounds_enabled = document.getElementById("sounds_enabled").checked;
+      settings.default_input = document.getElementById("default_input").value;
+      settings.auto_retry = document.getElementById("auto_retry").checked;
+      settings.retry_max = parseInt(document.getElementById("retry_max").value, 10);
+
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+          event: "setSettings",
+          context: pluginUUID,
+          payload: settings,
+        }));
+      }
+    }
+
+    document.getElementById("agent_id").addEventListener("change", saveSettings);
+    document.getElementById("sounds_enabled").addEventListener("change", saveSettings);
+    document.getElementById("default_input").addEventListener("input", saveSettings);
+    document.getElementById("auto_retry").addEventListener("change", saveSettings);
+    document.getElementById("retry_max").addEventListener("change", saveSettings);
+  </script>
+</body>
+</html>

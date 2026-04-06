@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Data Widget</title>
+  <link rel="stylesheet" href="sdpi.css" />
+</head>
+<body>
+  <div class="sdpi-wrapper">
+    <div class="sdpi-heading">Data Source</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">State Key</div>
+      <div class="sdpi-item-value">
+        <input type="text" id="state_key" list="state_key_list" placeholder="e.g. camera.front_door.motion" />
+        <datalist id="state_key_list"></datalist>
+      </div>
+    </div>
+
+    <div class="sdpi-heading">Display</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Format</div>
+      <div class="sdpi-item-value">
+        <select id="display_format">
+          <option value="raw">Raw</option>
+          <option value="currency">Currency ($)</option>
+          <option value="percentage">Percentage (%)</option>
+          <option value="boolean">Boolean (checkmark)</option>
+          <option value="number">Number</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sdpi-heading">Interaction</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Action</div>
+      <div class="sdpi-item-value">
+        <input type="text" id="action_on_press" placeholder="e.g. lights.turn_on (optional)" />
+      </div>
+    </div>
+
+    <div class="sdpi-info">
+      Displays the current value of a Deckhand state key. Optionally executes an action on button press.
+    </div>
+  </div>
+
+  <script>
+    let websocket = null;
+    let pluginUUID = null;
+    let actionInfo = null;
+    let settings = {};
+
+    function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfoStr) {
+      pluginUUID = uuid;
+      actionInfo = JSON.parse(actionInfoStr);
+      settings = actionInfo.payload.settings || {};
+
+      // Apply saved settings to UI
+      if (settings.state_key) {
+        document.getElementById("state_key").value = settings.state_key;
+      }
+      if (settings.display_format) {
+        document.getElementById("display_format").value = settings.display_format;
+      }
+      if (settings.action_on_press) {
+        document.getElementById("action_on_press").value = settings.action_on_press;
+      }
+
+      websocket = new WebSocket("ws://127.0.0.1:" + port);
+      websocket.onopen = function () {
+        websocket.send(JSON.stringify({ event: registerEvent, uuid: uuid }));
+        // Request state key list from plugin for autocomplete
+        websocket.send(JSON.stringify({
+          event: "sendToPlugin",
+          action: actionInfo.action,
+          context: pluginUUID,
+          payload: { type: "getStateKeys" },
+        }));
+      };
+
+      websocket.onmessage = function (evt) {
+        var data = JSON.parse(evt.data);
+        if (data.event === "sendToPropertyInspector") {
+          handlePluginMessage(data.payload);
+        }
+      };
+    }
+
+    function handlePluginMessage(payload) {
+      if (payload.type === "stateKeyList") {
+        populateStateKeyList(payload.keys);
+      }
+    }
+
+    function populateStateKeyList(keys) {
+      var datalist = document.getElementById("state_key_list");
+      datalist.innerHTML = "";
+      keys.forEach(function (key) {
+        var opt = document.createElement("option");
+        opt.value = key;
+        datalist.appendChild(opt);
+      });
+    }
+
+    function saveSettings() {
+      settings.state_key = document.getElementById("state_key").value;
+      settings.display_format = document.getElementById("display_format").value;
+      settings.action_on_press = document.getElementById("action_on_press").value;
+
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+          event: "setSettings",
+          context: pluginUUID,
+          payload: settings,
+        }));
+      }
+    }
+
+    // Refresh autocomplete when the state key input is focused
+    document.getElementById("state_key").addEventListener("focus", function () {
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+          event: "sendToPlugin",
+          action: actionInfo.action,
+          context: pluginUUID,
+          payload: { type: "getStateKeys" },
+        }));
+      }
+    });
+
+    document.getElementById("state_key").addEventListener("input", saveSettings);
+    document.getElementById("display_format").addEventListener("change", saveSettings);
+    document.getElementById("action_on_press").addEventListener("input", saveSettings);
+  </script>
+</body>
+</html>

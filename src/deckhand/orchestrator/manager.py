@@ -10,10 +10,10 @@ from deckhand.orchestrator.state import StateStore
 class Orchestrator:
     """Tracks agent lifecycle and routes commands to agents."""
 
-    def __init__(self) -> None:
+    def __init__(self, state_persist_path: str | None = None) -> None:
         self.agents: dict[str, AgentBase] = {}
         self.event_bus = EventBus()
-        self.state_store = StateStore(self.event_bus)
+        self.state_store = StateStore(self.event_bus, persist_path=state_persist_path)
 
     def register_agent(self, agent: AgentBase) -> None:
         agent.on_event = self.event_bus.emit

@@ -1,0 +1,3 @@
+[submodule "CodeCannon"]
+	path = CodeCannon
+	url = https://github.com/LightbridgeLab/CodeCannon.git

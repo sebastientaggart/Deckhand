@@ -16,5 +16,9 @@ modules = [
 ]
 
 [paths]
-# Path to button bindings JSON file (optional)
-bindings_file = "bindings.json"
+# Path to JSON file for persisting state across restarts (optional)
+# state_file = "state.json"
+
+[auth]
+# API key for authenticating requests (optional, disabled if empty)
+# api_key = "your-secret-key"

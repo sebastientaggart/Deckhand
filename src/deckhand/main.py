@@ -3,11 +3,10 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from deckhand.agents.mock import MockAgent
-from deckhand.config.bindings import load_bindings_from_file
 from deckhand.config.settings import Settings
 from deckhand.orchestrator.actions import ActionRegistry
 from deckhand.orchestrator.events import build_error_event
@@ -30,24 +29,25 @@ settings: Settings | None = None
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown."""
     global orchestrator, action_registry, signal_registry, plugin_registry, settings
-    
+
     # Startup
     logger.info("Starting Deckhand service...")
     settings = Settings()
-    
+
     # Log configuration
     logger.info(f"Configuration:")
     logger.info(f"  Host: {settings.host}")
     logger.info(f"  Port: {settings.port}")
     logger.info(f"  Config file: {settings.config_file_path or 'none'}")
-    logger.info(f"  Bindings file: {settings.bindings_file_path or 'none'}")
+    logger.info(f"  State file: {settings.state_file_path or 'none (in-memory only)'}")
+    logger.info(f"  Auth: {'enabled' if settings.api_key else 'disabled'}")
     logger.info(f"  Plugins: {', '.join(settings.plugin_modules)}")
-    
+
     # Initialize orchestrator
-    orchestrator = Orchestrator()
+    orchestrator = Orchestrator(state_persist_path=settings.state_file_path)
     orchestrator.register_agent(MockAgent(agent_id="mock-1"))
     orchestrator.register_agent(MockAgent(agent_id="mock-2"))
-    
+
     # Initialize registries
     action_registry = ActionRegistry(orchestrator)
     signal_registry = SignalRegistry()
@@ -58,42 +58,51 @@ async def lifespan(app: FastAPI):
         events=orchestrator.event_bus,
         orchestrator=orchestrator,
     )
-    
+
     # Load plugins
     load_plugins(settings.plugin_modules, plugin_registry)
     logger.info(f"Loaded {len(action_registry.list_actions())} actions and {len(signal_registry.list_signals())} signals")
-    
-    # Load bindings if configured
-    if settings.bindings_file_path:
-        try:
-            bindings = load_bindings_from_file(settings.bindings_file_path)
-            logger.info(f"Loaded {len(bindings)} button bindings from {settings.bindings_file_path}")
-        except Exception as e:
-            logger.warning(f"Failed to load bindings file: {e}")
-    
+
     logger.info("Deckhand service started")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Deckhand service...")
 
 
-app = FastAPI(title="Deckhand", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Deckhand", version="0.2.0", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------------------
+# Authentication middleware
+# ---------------------------------------------------------------------------
+
+async def verify_api_key(request: Request) -> None:
+    """Dependency that checks the API key if authentication is enabled."""
+    if settings is None or not settings.api_key:
+        return  # Auth disabled
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    else:
+        token = auth_header
+    if token != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 class InputPayload(BaseModel):
     text: str
 
 
-@app.get("/agents")
+@app.get("/agents", dependencies=[Depends(verify_api_key)])
 async def list_agents() -> list[dict[str, object]]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     return [agent.as_dict() for agent in orchestrator.list_agents()]
 
 
-@app.post("/agents/{agent_id}/start")
+@app.post("/agents/{agent_id}/start", dependencies=[Depends(verify_api_key)])
 async def start_agent(agent_id: str) -> dict[str, str]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -110,7 +119,7 @@ async def start_agent(agent_id: str) -> dict[str, str]:
     return {"status": "started"}
 
 
-@app.post("/agents/{agent_id}/cancel")
+@app.post("/agents/{agent_id}/cancel", dependencies=[Depends(verify_api_key)])
 async def cancel_agent(agent_id: str) -> dict[str, str]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -127,7 +136,7 @@ async def cancel_agent(agent_id: str) -> dict[str, str]:
     return {"status": "cancelled"}
 
 
-@app.post("/agents/{agent_id}/input")
+@app.post("/agents/{agent_id}/input", dependencies=[Depends(verify_api_key)])
 async def provide_input(agent_id: str, payload: InputPayload) -> dict[str, str]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -144,7 +153,7 @@ async def provide_input(agent_id: str, payload: InputPayload) -> dict[str, str]:
     return {"status": "input_sent"}
 
 
-@app.post("/actions/{action_name}")
+@app.post("/actions/{action_name}", dependencies=[Depends(verify_api_key)])
 async def run_action(
     action_name: str,
     payload: dict[str, object] = Body(default_factory=dict),
@@ -172,7 +181,7 @@ async def run_action(
     return {"status": "ok"}
 
 
-@app.get("/actions")
+@app.get("/actions", dependencies=[Depends(verify_api_key)])
 async def list_actions() -> dict[str, list[dict[str, object]]]:
     if action_registry is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -189,7 +198,7 @@ async def list_actions() -> dict[str, list[dict[str, object]]]:
     }
 
 
-@app.get("/actions/{action_name}")
+@app.get("/actions/{action_name}", dependencies=[Depends(verify_api_key)])
 async def get_action_metadata(action_name: str) -> dict[str, object]:
     if action_registry is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -203,7 +212,7 @@ async def get_action_metadata(action_name: str) -> dict[str, object]:
     }
 
 
-@app.post("/signals/webhook/{signal_name}")
+@app.post("/signals/webhook/{signal_name}", dependencies=[Depends(verify_api_key)])
 async def handle_webhook_signal(
     signal_name: str,
     payload: dict[str, object] = Body(default_factory=dict),
@@ -231,7 +240,7 @@ async def handle_webhook_signal(
     return {"status": "ok"}
 
 
-@app.get("/signals")
+@app.get("/signals", dependencies=[Depends(verify_api_key)])
 async def list_signals() -> dict[str, list[dict[str, object]]]:
     if signal_registry is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -248,7 +257,7 @@ async def list_signals() -> dict[str, list[dict[str, object]]]:
     }
 
 
-@app.get("/signals/{signal_name}")
+@app.get("/signals/{signal_name}", dependencies=[Depends(verify_api_key)])
 async def get_signal_metadata(signal_name: str) -> dict[str, object]:
     if signal_registry is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -262,14 +271,14 @@ async def get_signal_metadata(signal_name: str) -> dict[str, object]:
     }
 
 
-@app.get("/state")
+@app.get("/state", dependencies=[Depends(verify_api_key)])
 async def list_state() -> list[dict[str, object]]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     return orchestrator.state_store.list_state()
 
 
-@app.get("/state/{state_key}")
+@app.get("/state/{state_key}", dependencies=[Depends(verify_api_key)])
 async def get_state(state_key: str) -> dict[str, object]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -284,6 +293,14 @@ async def events(websocket: WebSocket) -> None:
     if orchestrator is None:
         await websocket.close(code=1013, reason="Service not initialized")
         return
+
+    # Check API key for WebSocket connections via query param
+    if settings and settings.api_key:
+        token = websocket.query_params.get("token", "")
+        if token != settings.api_key:
+            await websocket.close(code=4001, reason="Invalid or missing API key")
+            return
+
     await orchestrator.event_bus.subscribe(websocket)
     try:
         while True:

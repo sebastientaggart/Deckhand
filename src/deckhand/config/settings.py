@@ -18,7 +18,8 @@ class Settings:
         self.port = 8000
         self.plugin_modules = ["deckhand.plugins.builtin"]
         self.config_file_path: str | None = None
-        self.bindings_file_path: str | None = None
+        self.state_file_path: str | None = None
+        self.api_key: str | None = None
         
         # Load from config file if specified
         config_file = os.getenv("DECKHAND_CONFIG_FILE")
@@ -46,12 +47,19 @@ class Settings:
             modules = plugin_config.get("modules")
             if modules:
                 self.plugin_modules = modules
-        
+
         # Path settings
         if "paths" in config:
             paths_config = config["paths"]
-            self.bindings_file_path = paths_config.get("bindings_file")
-    
+            if state_file := paths_config.get("state_file"):
+                self.state_file_path = state_file
+
+        # Auth settings
+        if "auth" in config:
+            auth_config = config["auth"]
+            if api_key := auth_config.get("api_key"):
+                self.api_key = api_key
+
     def _load_from_env(self) -> None:
         """Load settings from environment variables (highest priority)."""
         # Service settings
@@ -71,7 +79,12 @@ class Settings:
         # Plugin modules (comma-separated)
         if plugins_str := os.getenv("DECKHAND_PLUGINS"):
             self.plugin_modules = [p.strip() for p in plugins_str.split(",") if p.strip()]
-        
-        # Bindings file path
-        if bindings_file := os.getenv("DECKHAND_BINDINGS_FILE"):
-            self.bindings_file_path = bindings_file
+
+        # State persistence file path
+        if state_file := os.getenv("DECKHAND_STATE_FILE"):
+            self.state_file_path = state_file
+
+        # API key for authentication
+        if api_key := os.getenv("DECKHAND_API_KEY"):
+            self.api_key = api_key
+

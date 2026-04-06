@@ -2,21 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from deckhand.orchestrator.events import build_event
 from deckhand.plugins.registry import PluginRegistry
 
 
 def register(registry: PluginRegistry) -> None:
-    async def open_url(payload: dict[str, Any]) -> None:
-        url = payload.get("url")
-        if not url:
-            raise ValueError("url is required")
-        await registry.events.emit(build_event(
-            "ui.open_url",
-            {"kind": "action", "id": "ui.open_url"},
-            {"url": str(url)},
-        ))
-
     async def camera_motion(payload: dict[str, Any]) -> None:
         key = str(payload.get("key") or "camera.front_door.motion")
         active = bool(payload.get("active", True))
@@ -29,12 +18,6 @@ def register(registry: PluginRegistry) -> None:
             source={"kind": "signal", "id": "camera.motion"},
         )
 
-    registry.actions.register(
-        "ui.open_url",
-        open_url,
-        description="Open a URL in the client's default browser",
-        payload_schema={"url": {"type": "string", "required": True}},
-    )
     registry.signals.register(
         "camera.motion",
         camera_motion,

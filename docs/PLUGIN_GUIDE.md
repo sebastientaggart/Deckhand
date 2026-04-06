@@ -1,19 +1,21 @@
 # Plugin Author Guide
 
-This guide explains how to create plugins for Deckhand that extend its capabilities with custom actions, signals, and state management.
+This guide explains how to create **Deckhand Core plugins** — Python modules that extend the orchestration service with custom actions, signals, and state management.
+
+> **Note**: This is about extending Deckhand Core (the FastAPI service), not about the OpenDeck plugin. Deckhand Core plugins add server-side capabilities that automatically become available to the OpenDeck bridge and any other connected client. For the OpenDeck plugin, see [opendeck-plugin/README.md](../opendeck-plugin/README.md).
 
 ## Introduction
 
-Deckhand plugins are Python modules that register actions and signals with the Deckhand service. Actions are named commands that can be triggered by clients (e.g., button presses), while signals ingest external events (e.g., webhooks from cameras or sensors).
+Deckhand Core plugins are Python modules that register actions and signals with the service. Actions are named commands that can be triggered via `POST /actions/{name}` (e.g., from an OpenDeck button press). Signals ingest external events via `POST /signals/webhook/{name}` (e.g., webhooks from cameras or sensors).
 
 ### Architecture Overview
 
-- **Actions**: Named commands triggered by clients via `POST /actions/{name}`
+- **Actions**: Named commands triggered via `POST /actions/{name}`
 - **Signals**: Named handlers for external events via `POST /signals/webhook/{name}`
 - **State Store**: Key-value store for UI indicators with optional TTL
-- **Event Bus**: Pub/sub system for emitting custom events to connected clients
+- **Event Bus**: Pub/sub system for emitting events to connected clients (including the OpenDeck plugin)
 
-Plugins register their capabilities during service startup, making them available to all clients.
+Plugins register their capabilities during service startup. Any registered action or signal automatically becomes available to the OpenDeck bridge — meaning a single plugin registration surfaces functionality on Stream Deck buttons.
 
 ## Quick Start
 

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Run Action</title>
+  <link rel="stylesheet" href="sdpi.css" />
+</head>
+<body>
+  <div class="sdpi-wrapper">
+    <div class="sdpi-heading">Action Configuration</div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Action</div>
+      <div class="sdpi-item-value">
+        <select id="action_name">
+          <option value="">Loading...</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Payload</div>
+      <div class="sdpi-item-value">
+        <input type="text" id="action_payload" placeholder='{"key": "value"} (optional JSON)' />
+      </div>
+    </div>
+
+    <div class="sdpi-info">
+      Executes the selected Deckhand action with the given payload when the button is pressed.
+    </div>
+  </div>
+
+  <script>
+    let websocket = null;
+    let pluginUUID = null;
+    let actionInfo = null;
+    let settings = {};
+
+    function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfoStr) {
+      pluginUUID = uuid;
+      actionInfo = JSON.parse(actionInfoStr);
+      settings = actionInfo.payload.settings || {};
+
+      if (settings.action_payload) {
+        document.getElementById("action_payload").value = settings.action_payload;
+      }
+
+      websocket = new WebSocket("ws://127.0.0.1:" + port);
+      websocket.onopen = function () {
+        websocket.send(JSON.stringify({ event: registerEvent, uuid: uuid }));
+        websocket.send(JSON.stringify({
+          event: "sendToPlugin",
+          action: actionInfo.action,
+          context: pluginUUID,
+          payload: { type: "getActions" },
+        }));
+      };
+
+      websocket.onmessage = function (evt) {
+        var data = JSON.parse(evt.data);
+        if (data.event === "sendToPropertyInspector") {
+          handlePluginMessage(data.payload);
+        }
+      };
+    }
+
+    function handlePluginMessage(payload) {
+      if (payload.type === "actionList") {
+        populateActionDropdown(payload.actions);
+      }
+    }
+
+    function populateActionDropdown(actions) {
+      var select = document.getElementById("action_name");
+      select.innerHTML = '<option value="">-- Select Action --</option>';
+      actions.forEach(function (act) {
+        var opt = document.createElement("option");
+        opt.value = act.name;
+        opt.textContent = act.name + (act.description ? " - " + act.description : "");
+        if (act.name === settings.action_name) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+    }
+
+    function saveSettings() {
+      settings.action_name = document.getElementById("action_name").value;
+      settings.action_payload = document.getElementById("action_payload").value;
+
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+          event: "setSettings",
+          context: pluginUUID,
+          payload: settings,
+        }));
+      }
+    }
+
+    document.getElementById("action_name").addEventListener("change", saveSettings);
+    document.getElementById("action_payload").addEventListener("input", saveSettings);
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+{
+  "Name": "Deckhand",
+  "Author": "Deckhand",
+  "Description": "Agent monitoring, interactive widgets, and signal-driven buttons",
+  "Version": "0.2.0",
+  "Icon": "assets/icon",
+  "Category": "Deckhand",
+  "CodePathMac": "run.sh",
+  "CodePathLin": "run.sh",
+  "OS": [
+    { "Platform": "mac", "MinimumVersion": "10.11" },
+    { "Platform": "linux" }
+  ],
+  "Actions": [
+    {
+      "UUID": "com.deckhand.agent.status",
+      "Name": "Agent Status",
+      "Icon": "assets/agent-idle",
+      "Tooltip": "Monitor a Deckhand agent and interact with it",
+      "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "propertyInspector/agent_status.html",
+      "States": [
+        { "Image": "assets/agent-idle", "Name": "Idle", "Title": "Idle" },
+        { "Image": "assets/agent-running", "Name": "Running", "Title": "Running" },
+        { "Image": "assets/agent-input", "Name": "Awaiting Input", "Title": "Input" },
+        { "Image": "assets/agent-error", "Name": "Error", "Title": "Error" }
+      ]
+    },
+    {
+      "UUID": "com.deckhand.widget",
+      "Name": "Data Widget",
+      "Icon": "assets/widget",
+      "Tooltip": "Display live data from Deckhand state",
+      "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "propertyInspector/widget.html",
+      "States": [
+        { "Image": "actionDefaultImage" }
+      ]
+    },
+    {
+      "UUID": "com.deckhand.signal.trigger",
+      "Name": "Signal Trigger",
+      "Icon": "assets/signal-trigger",
+      "Tooltip": "Fire a Deckhand signal on button press",
+      "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "propertyInspector/signal_trigger.html",
+      "States": [
+        { "Image": "assets/signal-trigger" }
+      ]
+    },
+    {
+      "UUID": "com.deckhand.action.run",
+      "Name": "Run Action",
+      "Icon": "assets/action-run",
+      "Tooltip": "Execute a Deckhand action with a fixed payload",
+      "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "propertyInspector/action_run.html",
+      "States": [
+        { "Image": "assets/action-run" }
+      ]
+    },
+    {
+      "UUID": "com.deckhand.agent.dashboard",
+      "Name": "Agent Dashboard",
+      "Icon": "assets/dashboard",
+      "Tooltip": "Overview of all Deckhand agents",
+      "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "propertyInspector/agent_dashboard.html",
+      "States": [
+        { "Image": "assets/dashboard" }
+      ]
+    }
+  ]
+}

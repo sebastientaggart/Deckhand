@@ -20,5 +20,18 @@ modules = [
 # state_file = "state.json"
 
 [auth]
-# API key for authenticating requests (optional, disabled if empty)
+# API keys with scopes. Each key must have a "key" and a "scope" ("read" or "write").
+# Write scope implies read access. If no keys are configured, a temporary
+# write key is auto-generated on startup and logged to the console.
+#
+# api_keys = [
+#   { key = "your-write-key-here", scope = "write" },
+#   { key = "your-read-key-here", scope = "read" },
+# ]
+#
+# Legacy single-key format (treated as write scope):
 # api_key = "your-secret-key"
+
+[rate_limit]
+# Maximum requests per minute per client IP (default: 60)
+# rpm = 60

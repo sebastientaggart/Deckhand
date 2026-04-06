@@ -56,27 +56,32 @@ class StateStore:
             "expires_at": expires_at,
         }
         self._state[key] = entry
-        await self._event_bus.emit(build_event(
-            "state.changed",
-            source or {"kind": "state", "id": key},
-            entry,
-        ))
+        await self._event_bus.emit(
+            build_event(
+                "state.changed",
+                source or {"kind": "state", "id": key},
+                entry,
+            )
+        )
         self._schedule_save()
 
     async def clear_state(self, key: str, source: dict[str, str] | None = None) -> None:
         if key in self._state:
             del self._state[key]
-        await self._event_bus.emit(build_event(
-            "state.cleared",
-            source or {"kind": "state", "id": key},
-            {"key": key},
-        ))
+        await self._event_bus.emit(
+            build_event(
+                "state.cleared",
+                source or {"kind": "state", "id": key},
+                {"key": key},
+            )
+        )
         self._schedule_save()
 
     def _purge_expired(self) -> None:
         now = time.time()
         expired = [
-            key for key, entry in self._state.items()
+            key
+            for key, entry in self._state.items()
             if entry.get("expires_at") is not None and entry["expires_at"] <= now
         ]
         for key in expired:
@@ -84,12 +89,16 @@ class StateStore:
             # Emit state.cleared event for expired key
             # Use asyncio.create_task to schedule emission without blocking
             try:
-                loop = asyncio.get_running_loop()
-                asyncio.create_task(self._event_bus.emit(build_event(
-                    "state.cleared",
-                    {"kind": "state", "id": key},
-                    {"key": key},
-                )))
+                asyncio.get_running_loop()
+                asyncio.create_task(
+                    self._event_bus.emit(
+                        build_event(
+                            "state.cleared",
+                            {"kind": "state", "id": key},
+                            {"key": key},
+                        )
+                    )
+                )
             except RuntimeError:
                 # No running event loop, skip event emission
                 # This can happen in tests or non-async contexts
@@ -111,9 +120,13 @@ class StateStore:
                 key = entry.get("key")
                 if key:
                     self._state[key] = entry
-            logger.info("Loaded %d state entries from %s", len(self._state), self._persist_path)
+            logger.info(
+                "Loaded %d state entries from %s", len(self._state), self._persist_path
+            )
         except Exception:
-            logger.exception("Failed to load persisted state from %s", self._persist_path)
+            logger.exception(
+                "Failed to load persisted state from %s", self._persist_path
+            )
 
     def _schedule_save(self) -> None:
         """Schedule a debounced save to disk."""
@@ -123,7 +136,7 @@ class StateStore:
         if self._save_task and not self._save_task.done():
             return  # Already scheduled
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             self._save_task = asyncio.create_task(self._debounced_save())
         except RuntimeError:
             # No event loop — save synchronously (e.g., during shutdown)
@@ -145,7 +158,8 @@ class StateStore:
             # Only persist non-expired entries
             now = time.time()
             entries = [
-                e for e in self._state.values()
+                e
+                for e in self._state.values()
                 if e.get("expires_at") is None or e["expires_at"] > now
             ]
             self._persist_path.write_text(json.dumps(entries, default=str))

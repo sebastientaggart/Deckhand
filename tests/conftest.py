@@ -31,6 +31,7 @@ def orchestrator(event_bus: EventBus) -> Orchestrator:
 def state_store(event_bus: EventBus):
     """StateStore with test event bus."""
     from deckhand.orchestrator.state import StateStore
+
     return StateStore(event_bus)
 
 

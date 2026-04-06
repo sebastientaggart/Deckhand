@@ -11,5 +11,7 @@ def load_plugins(module_paths: Iterable[str], registry: PluginRegistry) -> None:
         module = importlib.import_module(module_path)
         register = getattr(module, "register", None)
         if register is None:
-            raise ValueError(f"Plugin module {module_path} has no register(registry) function")
+            raise ValueError(
+                f"Plugin module {module_path} has no register(registry) function"
+            )
         register(registry)

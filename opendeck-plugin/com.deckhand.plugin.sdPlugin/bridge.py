@@ -23,9 +23,9 @@ class DeckhandBridge:
     def __init__(self, base_url: str = "http://localhost:8000", api_key: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         ws_base = self.base_url.replace("http://", "ws://").replace("https://", "wss://")
+        # WebSocket URL no longer carries the token as a query param;
+        # authentication happens via a first-message handshake instead.
         self.ws_url = f"{ws_base}/events"
-        if api_key:
-            self.ws_url += f"?token={api_key}"
         self._api_key = api_key
         self._session: aiohttp.ClientSession | None = None
         self.connected = False
@@ -104,10 +104,14 @@ class DeckhandBridge:
             resp.raise_for_status()
             return await resp.json()
 
-    # ----- WebSocket: Events (with reconnection) -----
+    # ----- WebSocket: Events (first-message auth + reconnection) -----
 
     async def subscribe_events(self, callback: Callable[[dict[str, Any]], Any]) -> None:
         """Connect to Deckhand Core's event stream with automatic reconnection.
+
+        Authenticates via a first-message handshake (sends ``{type: "auth",
+        token: "..."}`` and waits for ``{type: "auth_ok"}``) instead of passing
+        the token as a query parameter.
 
         Uses exponential backoff when the connection drops.
         Runs indefinitely until cancelled.
@@ -118,6 +122,15 @@ class DeckhandBridge:
             try:
                 session = await self._get_session()
                 async with session.ws_connect(self.ws_url) as ws:
+                    # --- first-message auth handshake ---
+                    if self._api_key:
+                        await ws.send_json({"type": "auth", "token": self._api_key})
+                        auth_resp = await ws.receive_json()
+                        if auth_resp.get("type") != "auth_ok":
+                            detail = auth_resp.get("detail", "unknown error")
+                            logger.error("WebSocket auth failed: %s", detail)
+                            raise ConnectionError(f"Auth handshake failed: {detail}")
+
                     self.connected = True
                     delay = _RECONNECT_BASE_DELAY  # Reset on successful connect
                     logger.info("Connected to Deckhand Core event stream")

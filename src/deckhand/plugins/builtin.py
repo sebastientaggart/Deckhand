@@ -23,7 +23,11 @@ def register(registry: PluginRegistry) -> None:
         camera_motion,
         description="Handle camera motion detection webhook",
         payload_schema={
-            "key": {"type": "string", "required": False, "default": "camera.front_door.motion"},
+            "key": {
+                "type": "string",
+                "required": False,
+                "default": "camera.front_door.motion",
+            },
             "active": {"type": "boolean", "required": False, "default": True},
             "ttl_seconds": {"type": "number", "required": False},
         },

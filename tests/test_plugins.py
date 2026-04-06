@@ -31,10 +31,11 @@ async def test_plugin_loading_missing_register() -> None:
 
         # Add to path and import
         import sys
+
         sys.path.insert(0, tmpdir)
 
         try:
-            module = importlib.import_module("test_plugin")
+            importlib.import_module("test_plugin")
             registry = PluginRegistry(
                 actions=None,  # type: ignore
                 signals=None,  # type: ignore
@@ -52,6 +53,7 @@ async def test_plugin_loading_missing_register() -> None:
 async def test_builtin_plugin_registration(plugin_registry: PluginRegistry) -> None:
     """Test builtin plugin registration."""
     from deckhand.plugins.builtin import register
+
     register(plugin_registry)
 
     # Verify camera.motion signal

@@ -6,6 +6,7 @@ from typing import Awaitable, Callable, Iterable, Optional
 
 from deckhand.orchestrator.events import build_event
 
+
 class AgentStatus(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
@@ -19,7 +20,9 @@ EventHandler = Callable[[dict[str, object]], Awaitable[None]]
 class AgentBase(ABC):
     """Base class for long-lived agents."""
 
-    def __init__(self, agent_id: str, agent_type: str, capabilities: Iterable[str]) -> None:
+    def __init__(
+        self, agent_id: str, agent_type: str, capabilities: Iterable[str]
+    ) -> None:
         self.id = agent_id
         self.type = agent_type
         self.status = AgentStatus.IDLE
@@ -36,11 +39,13 @@ class AgentBase(ABC):
 
     async def _set_status(self, status: AgentStatus) -> None:
         self.status = status
-        await self._emit_event(build_event(
-            "agent.status_changed",
-            {"kind": "agent", "id": self.id},
-            {"agent": self.as_dict()},
-        ))
+        await self._emit_event(
+            build_event(
+                "agent.status_changed",
+                {"kind": "agent", "id": self.id},
+                {"agent": self.as_dict()},
+            )
+        )
 
     async def _emit_event(self, payload: dict[str, object]) -> None:
         if self.on_event is not None:

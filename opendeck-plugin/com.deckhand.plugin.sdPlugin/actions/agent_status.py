@@ -75,7 +75,8 @@ class AgentStatusHandler:
             agent = next((a for a in agents if a.get("id") == agent_id), None)
             if agent:
                 status = agent.get("status", "idle")
-                title = STATUS_TITLES.get(status, "") or agent.get("id", agent_id)
+                label = agent.get("display_label", agent.get("id", agent_id))
+                title = STATUS_TITLES.get(status, "") or label
                 await _set_state(ws, context, STATUS_INDEX.get(status, 0))
                 await _set_title(ws, context, title)
             else:
@@ -137,19 +138,21 @@ class AgentStatusHandler:
 
     async def on_deckhand_event(self, ws: websockets.asyncio.client.ClientConnection, event_type: str, event: dict[str, Any], all_contexts: dict[str, dict[str, Any]]) -> None:
         """Handle events from Deckhand Core."""
-        if event_type != "agent.status_changed":
+        if event_type not in ("agent.status_changed", "agent.context_changed"):
             return
 
         payload = event.get("payload", {})
-        agent_id = payload.get("agent_id", "")
-        new_status = payload.get("status", "")
+        agent_data = payload.get("agent", {})
+        agent_id = agent_data.get("id", "") or payload.get("agent_id", "")
+        new_status = agent_data.get("status", "") or payload.get("status", "")
+        display_label = agent_data.get("display_label", agent_id)
 
         for context, info in list(self._watched.items()):
             if info.get("agent_id") != agent_id:
                 continue
 
             state_idx = STATUS_INDEX.get(new_status, 0)
-            title = STATUS_TITLES.get(new_status, "") or agent_id
+            title = STATUS_TITLES.get(new_status, "") or display_label
 
             try:
                 await _set_state(ws, context, state_idx)

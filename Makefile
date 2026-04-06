@@ -15,7 +15,7 @@ install: ## Install all dependencies via uv
 	uv sync --all-extras
 
 dev: ## Start dev server with hot reload
-	uv run uvicorn deckhand.main:app --app-dir src --reload --host 127.0.0.1 --port 8000
+	uv run python -m uvicorn deckhand.main:app --app-dir src --reload --host 127.0.0.1 --port 8000
 
 test: ## Run test suite
 	uv run pytest tests/ -v --asyncio-mode=auto

@@ -22,7 +22,7 @@ from starlette.responses import JSONResponse
 from deckhand.agents.mock import MockAgent
 from deckhand.config.settings import Settings
 from deckhand.orchestrator.actions import ActionRegistry
-from deckhand.orchestrator.events import build_error_event
+from deckhand.orchestrator.events import build_error_event, build_event
 from deckhand.orchestrator.manager import Orchestrator
 from deckhand.orchestrator.signals import SignalRegistry
 from deckhand.plugins.loader import load_plugins
@@ -85,8 +85,12 @@ async def lifespan(app: FastAPI):
 
     # Initialize orchestrator
     orchestrator = Orchestrator(state_persist_path=settings.state_file_path)
-    orchestrator.register_agent(MockAgent(agent_id="mock-1"))
-    orchestrator.register_agent(MockAgent(agent_id="mock-2"))
+    orchestrator.register_agent(
+        MockAgent(agent_id="mock-1", project_root="/home/dev/project-alpha")
+    )
+    orchestrator.register_agent(
+        MockAgent(agent_id="mock-2", project_root="/home/dev/project-beta")
+    )
 
     # Initialize registries
     action_registry = ActionRegistry(orchestrator)
@@ -207,6 +211,23 @@ class ActionPayload(BaseModel):
     payload: dict[str, object] = {}
 
 
+class AgentRegisterPayload(BaseModel):
+    """Payload for registering a new agent."""
+
+    agent_id: str
+    agent_type: str = "external"
+    capabilities: list[str] = []
+    project_root: str | None = None
+    active_file: str | None = None
+
+
+class AgentContextPayload(BaseModel):
+    """Payload for updating an agent's project context."""
+
+    project_root: str | None = None
+    active_file: str | None = None
+
+
 class SignalPayload(BaseModel):
     """Wrapper for signal webhook payloads."""
 
@@ -285,6 +306,67 @@ async def provide_input(agent_id: str, payload: InputPayload) -> dict[str, str]:
         )
         raise HTTPException(status_code=404, detail="agent not found") from exc
     return {"status": "input_sent"}
+
+
+@app.post("/agents/register", dependencies=[Depends(require_write)])
+async def register_agent(payload: AgentRegisterPayload) -> dict[str, object]:
+    """Register a new external agent with optional project context."""
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    if orchestrator.get_agent(payload.agent_id) is not None:
+        raise HTTPException(status_code=409, detail="agent already registered")
+
+    from deckhand.agents.base import AgentBase, AgentStatus
+
+    class ExternalAgent(AgentBase):
+        """Placeholder agent for externally-managed processes."""
+
+        async def start(self) -> None:
+            await self._set_status(AgentStatus.RUNNING)
+
+        async def cancel(self) -> None:
+            await self._set_status(AgentStatus.IDLE)
+
+        async def provide_input(self, text: str) -> None:
+            pass
+
+    agent = ExternalAgent(
+        agent_id=payload.agent_id,
+        agent_type=payload.agent_type,
+        capabilities=payload.capabilities,
+        project_root=payload.project_root,
+        active_file=payload.active_file,
+    )
+    orchestrator.register_agent(agent)
+    return agent.as_dict()
+
+
+@app.patch("/agents/{agent_id}/context", dependencies=[Depends(require_write)])
+async def update_agent_context(
+    agent_id: str, payload: AgentContextPayload
+) -> dict[str, object]:
+    """Update an agent's project context (project_root and/or active_file)."""
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    agent = orchestrator.get_agent(agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail="agent not found")
+
+    if payload.project_root is not None:
+        agent.project_root = payload.project_root
+    if payload.active_file is not None:
+        agent.active_file = payload.active_file
+
+    await orchestrator.event_bus.emit(
+        build_event(
+            "agent.context_changed",
+            {"kind": "agent", "id": agent_id},
+            {"agent": agent.as_dict()},
+        )
+    )
+    return agent.as_dict()
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse
 
 from deckhand.agents.mock import MockAgent
 from deckhand.config.settings import Settings
+from deckhand.logging_config import configure_logging
 from deckhand.orchestrator.actions import ActionRegistry
 from deckhand.orchestrator.events import build_error_event, build_event
 from deckhand.orchestrator.manager import Orchestrator
@@ -57,9 +58,10 @@ async def lifespan(app: FastAPI):
         settings, \
         rate_limiter
 
-    # Startup
-    logger.info("Starting Deckhand service...")
+    # Startup — load settings first so we can configure logging from them
     settings = Settings()
+    configure_logging(level=settings.log_level, fmt=settings.log_format)
+    logger.info("Starting Deckhand service...")
 
     # Log configuration
     logger.info("Configuration:")
@@ -142,6 +144,10 @@ class _RateLimitMiddleware(BaseHTTPMiddleware):
         if rate_limiter is not None:
             client_ip = request.client.host if request.client else "unknown"
             if not rate_limiter.check(client_ip):
+                logger.warning(
+                    "Rate limit exceeded",
+                    extra={"client_ip": client_ip, "path": request.url.path},
+                )
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Rate limit exceeded"},
@@ -170,15 +176,24 @@ def _require_scope(request: Request, scope: str) -> ApiKeyEntry:
     if settings is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
+    client_ip = request.client.host if request.client else "unknown"
+    log_ctx = {"client_ip": client_ip, "path": request.url.path, "scope": scope}
+
     token = _extract_token(request)
     if not token:
+        logger.warning("Auth failed: missing API key", extra=log_ctx)
         raise HTTPException(status_code=401, detail="Missing API key")
 
     entry = resolve_key(token, settings.api_keys)
     if entry is None:
+        logger.warning("Auth failed: invalid API key", extra=log_ctx)
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     if not has_scope(entry, scope):
+        logger.warning(
+            "Auth failed: insufficient scope",
+            extra={**log_ctx, "key_scope": entry.scope},
+        )
         raise HTTPException(
             status_code=403, detail=f"Insufficient scope: requires '{scope}'"
         )
@@ -574,12 +589,15 @@ async def events(websocket: WebSocket) -> None:
 
     # Accept the connection, then authenticate via first message
     await websocket.accept()
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    ws_ctx = {"client_ip": client_ip, "path": "/events"}
 
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=_WS_AUTH_TIMEOUT)
         auth_msg = json.loads(raw)
 
         if auth_msg.get("type") != "auth" or "token" not in auth_msg:
+            logger.warning("WS auth failed: malformed auth message", extra=ws_ctx)
             await websocket.send_json(
                 {
                     "type": "auth_error",
@@ -591,6 +609,7 @@ async def events(websocket: WebSocket) -> None:
 
         entry = resolve_key(auth_msg["token"], settings.api_keys)
         if entry is None:
+            logger.warning("WS auth failed: invalid API key", extra=ws_ctx)
             await websocket.send_json(
                 {"type": "auth_error", "detail": "Invalid API key"}
             )
@@ -600,9 +619,11 @@ async def events(websocket: WebSocket) -> None:
         await websocket.send_json({"type": "auth_ok", "scope": entry.scope})
 
     except asyncio.TimeoutError:
+        logger.warning("WS auth failed: handshake timed out", extra=ws_ctx)
         await websocket.close(code=4001, reason="Auth handshake timed out")
         return
     except (json.JSONDecodeError, KeyError):
+        logger.warning("WS auth failed: malformed auth message", extra=ws_ctx)
         await websocket.close(code=4001, reason="Malformed auth message")
         return
 

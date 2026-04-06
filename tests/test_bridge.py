@@ -3,25 +3,35 @@
 from __future__ import annotations
 
 import asyncio
-import json
 
 import pytest
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from httpx import ASGITransport, AsyncClient
 
 # We test the bridge logic by verifying it would make the right HTTP calls.
 # Since the real bridge uses aiohttp, we test at a higher level against the
 # actual Deckhand Core FastAPI app.
 
-from deckhand.main import app, lifespan
+TEST_API_KEY = "test-key-for-bridge-tests"
 
 
 @pytest.fixture
-async def client():
-    """Async HTTP client against the Deckhand Core app."""
+async def client(monkeypatch):
+    """Async HTTP client against the Deckhand Core app with auth."""
+    monkeypatch.setenv("DECKHAND_API_KEY", TEST_API_KEY)
+
+    # Import after env is set so Settings picks up the key
+    import importlib
+    import deckhand.main as main_mod
+
+    importlib.reload(main_mod)
+    from deckhand.main import app, lifespan
+
     async with lifespan(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
+        headers = {"Authorization": f"Bearer {TEST_API_KEY}"}
+        async with AsyncClient(
+            transport=transport, base_url="http://test", headers=headers
+        ) as c:
             yield c
 
 
@@ -104,3 +114,22 @@ async def test_list_actions(client: AsyncClient) -> None:
     names = [a["name"] for a in data["actions"]]
     assert "agent.start" in names
     assert "agent.cancel" in names
+
+
+async def test_unauthenticated_request_rejected(client: AsyncClient) -> None:
+    """Requests without API key are rejected with 401."""
+    transport = ASGITransport(app=client._transport.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as no_auth:
+        resp = await no_auth.get("/agents")
+        assert resp.status_code == 401
+
+
+async def test_read_only_key_blocks_write(client: AsyncClient) -> None:
+    """A read-scoped key cannot access write endpoints."""
+    transport = ASGITransport(app=client._transport.app)
+    headers = {"Authorization": "Bearer wrong-key"}
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=headers
+    ) as bad:
+        resp = await bad.post("/agents/mock-1/start")
+        assert resp.status_code == 401

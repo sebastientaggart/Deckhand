@@ -9,6 +9,7 @@ from deckhand.orchestrator.signals import SignalRegistry
 
 async def test_signal_registration(signal_registry: SignalRegistry) -> None:
     """Test signal registration and listing."""
+
     async def test_handler(payload: dict[str, object]) -> None:
         pass
 
@@ -39,6 +40,7 @@ async def test_signal_handling_valid(signal_registry: SignalRegistry) -> None:
 
 async def test_signal_handling_invalid(signal_registry: SignalRegistry) -> None:
     """Test signal handling with invalid payload."""
+
     async def test_handler(payload: dict[str, object]) -> None:
         if "required_field" not in payload:
             raise ValueError("required_field is required")
@@ -56,6 +58,7 @@ async def test_signal_handling_nonexistent(signal_registry: SignalRegistry) -> N
 
 async def test_signal_metadata(signal_registry: SignalRegistry) -> None:
     """Test signal metadata retrieval."""
+
     async def test_handler(payload: dict[str, object]) -> None:
         pass
 
@@ -73,9 +76,10 @@ async def test_signal_metadata(signal_registry: SignalRegistry) -> None:
     assert "key" in metadata.payload_schema
 
 
-async def test_builtin_camera_motion_signal(plugin_registry: PluginRegistry) -> None:
+async def test_builtin_camera_motion_signal(plugin_registry) -> None:
     """Test builtin camera.motion signal with state updates."""
     from deckhand.plugins.builtin import register
+
     register(plugin_registry)
 
     # Verify signal is registered

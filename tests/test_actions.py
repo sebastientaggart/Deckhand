@@ -9,6 +9,7 @@ from deckhand.orchestrator.actions import ActionRegistry
 
 async def test_action_registration(action_registry: ActionRegistry) -> None:
     """Test action registration and listing."""
+
     async def test_handler(payload: dict[str, object]) -> None:
         pass
 

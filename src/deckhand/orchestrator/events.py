@@ -88,8 +88,9 @@ class EventBus:
     def __init__(self) -> None:
         self._subscribers: set[WebSocket] = set()
 
-    async def subscribe(self, websocket: WebSocket) -> None:
-        await websocket.accept()
+    async def subscribe(self, websocket: WebSocket, *, accept: bool = True) -> None:
+        if accept:
+            await websocket.accept()
         self._subscribers.add(websocket)
 
     def unsubscribe(self, websocket: WebSocket) -> None:
@@ -112,7 +113,11 @@ class EventBus:
         if missing_fields:
             raise ValueError(f"Event missing required fields: {missing_fields}")
 
-        if not isinstance(event.get("source"), dict) or "kind" not in event.get("source", {}) or "id" not in event.get("source", {}):
+        if (
+            not isinstance(event.get("source"), dict)
+            or "kind" not in event.get("source", {})
+            or "id" not in event.get("source", {})
+        ):
             raise ValueError("Event source must have 'kind' and 'id' fields")
 
         dead: list[WebSocket] = []

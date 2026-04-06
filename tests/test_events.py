@@ -123,13 +123,15 @@ async def test_event_envelope_validation() -> None:
 
     # Invalid source structure
     with pytest.raises(ValueError, match="source must have"):
-        await bus.emit({
-            "type": "test",
-            "source": {},
-            "payload": {},
-            "ts": 123.0,
-            "version": "1.0",
-        })
+        await bus.emit(
+            {
+                "type": "test",
+                "source": {},
+                "payload": {},
+                "ts": 123.0,
+                "version": "1.0",
+            }
+        )
 
 
 async def test_build_error_event() -> None:

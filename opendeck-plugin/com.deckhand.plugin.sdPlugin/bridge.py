@@ -68,6 +68,48 @@ class DeckhandBridge:
         ) as resp:
             resp.raise_for_status()
 
+    async def register_agent(
+        self,
+        agent_id: str,
+        agent_type: str = "external",
+        capabilities: list[str] | None = None,
+        project_root: str | None = None,
+        active_file: str | None = None,
+    ) -> dict[str, Any]:
+        session = await self._get_session()
+        body: dict[str, Any] = {
+            "agent_id": agent_id,
+            "agent_type": agent_type,
+            "capabilities": capabilities or [],
+        }
+        if project_root is not None:
+            body["project_root"] = project_root
+        if active_file is not None:
+            body["active_file"] = active_file
+        async with session.post(
+            f"{self.base_url}/agents/register", json=body
+        ) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    async def update_agent_context(
+        self,
+        agent_id: str,
+        project_root: str | None = None,
+        active_file: str | None = None,
+    ) -> dict[str, Any]:
+        session = await self._get_session()
+        body: dict[str, Any] = {}
+        if project_root is not None:
+            body["project_root"] = project_root
+        if active_file is not None:
+            body["active_file"] = active_file
+        async with session.patch(
+            f"{self.base_url}/agents/{agent_id}/context", json=body
+        ) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
     # ----- HTTP: Actions -----
 
     async def execute_action(self, action_name: str, payload: dict[str, Any] | None = None) -> None:

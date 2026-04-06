@@ -36,7 +36,7 @@ async def client(monkeypatch):
 
 
 async def test_list_agents(client: AsyncClient) -> None:
-    """Bridge.list_agents() hits GET /agents."""
+    """Bridge.list_agents() hits GET /agents and includes context fields."""
     resp = await client.get("/agents")
     assert resp.status_code == 200
     agents = resp.json()
@@ -45,6 +45,13 @@ async def test_list_agents(client: AsyncClient) -> None:
     ids = [a["id"] for a in agents]
     assert "mock-1" in ids
     assert "mock-2" in ids
+
+    # Verify context fields are present
+    mock1 = next(a for a in agents if a["id"] == "mock-1")
+    assert "project_root" in mock1
+    assert "display_label" in mock1
+    assert mock1["project_root"] == "/home/dev/project-alpha"
+    assert mock1["display_label"] == "mock: project-alpha"
 
 
 async def test_start_agent(client: AsyncClient) -> None:
@@ -133,3 +140,80 @@ async def test_read_only_key_blocks_write(client: AsyncClient) -> None:
     ) as bad:
         resp = await bad.post("/agents/mock-1/start")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Agent registration & context tests
+# ---------------------------------------------------------------------------
+
+
+async def test_register_agent(client: AsyncClient) -> None:
+    """POST /agents/register creates a new agent with context."""
+    resp = await client.post(
+        "/agents/register",
+        json={
+            "agent_id": "ext-1",
+            "agent_type": "claude-code",
+            "capabilities": ["accepts_text"],
+            "project_root": "/home/dev/my-project",
+            "active_file": "/home/dev/my-project/src/main.py",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == "ext-1"
+    assert data["type"] == "claude-code"
+    assert data["project_root"] == "/home/dev/my-project"
+    assert data["active_file"] == "/home/dev/my-project/src/main.py"
+    assert data["display_label"] == "claude-code: my-project"
+
+    # Agent should now be listable
+    resp2 = await client.get("/agents")
+    ids = [a["id"] for a in resp2.json()]
+    assert "ext-1" in ids
+
+
+async def test_register_agent_duplicate(client: AsyncClient) -> None:
+    """Registering an agent with an existing ID returns 409."""
+    resp = await client.post(
+        "/agents/register",
+        json={"agent_id": "mock-1"},
+    )
+    assert resp.status_code == 409
+
+
+async def test_update_agent_context(client: AsyncClient) -> None:
+    """PATCH /agents/{id}/context updates project_root and active_file."""
+    resp = await client.patch(
+        "/agents/mock-1/context",
+        json={
+            "project_root": "/tmp/new-project",
+            "active_file": "/tmp/new-project/README.md",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["project_root"] == "/tmp/new-project"
+    assert data["active_file"] == "/tmp/new-project/README.md"
+    assert data["display_label"] == "mock: new-project"
+
+
+async def test_update_agent_context_not_found(client: AsyncClient) -> None:
+    """PATCH /agents/{id}/context returns 404 for unknown agent."""
+    resp = await client.patch(
+        "/agents/nonexistent/context",
+        json={"project_root": "/tmp/x"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_agent_without_context_uses_id_as_label(client: AsyncClient) -> None:
+    """An agent with no project_root falls back to its ID for display_label."""
+    resp = await client.post(
+        "/agents/register",
+        json={"agent_id": "bare-agent"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["project_root"] is None
+    assert data["display_label"] == "bare-agent"

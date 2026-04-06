@@ -28,8 +28,10 @@ class Settings:
         # Auth: list of {key, scope} dicts
         self._raw_api_keys: list[dict[str, str]] = []
 
-        # Load from config file if specified
+        # Load from config file: explicit env var, or auto-discover ./config.toml
         config_file = os.getenv("DECKHAND_CONFIG_FILE")
+        if not config_file and os.path.exists("config.toml"):
+            config_file = "config.toml"
         if config_file:
             self.config_file_path = config_file
             self._load_from_config_file(config_file)
@@ -89,15 +91,9 @@ class Settings:
             self.rate_limit_rpm = rl_config.get("rpm", self.rate_limit_rpm)
 
     def _load_auth(self, auth_config: dict[str, Any]) -> None:
-        """Parse the [auth] section, supporting both legacy and new formats."""
-        # New format: api_keys = [{key = "...", scope = "..."}]
+        """Parse the [auth] section."""
         if "api_keys" in auth_config:
             self._raw_api_keys = auth_config["api_keys"]
-            return
-
-        # Legacy format: api_key = "single-key" (treated as write scope)
-        if api_key := auth_config.get("api_key"):
-            self._raw_api_keys = [{"key": api_key, "scope": "write"}]
 
     # ------------------------------------------------------------------
     # Environment variable overrides

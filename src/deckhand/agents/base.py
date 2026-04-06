@@ -21,21 +21,45 @@ class AgentBase(ABC):
     """Base class for long-lived agents."""
 
     def __init__(
-        self, agent_id: str, agent_type: str, capabilities: Iterable[str]
+        self,
+        agent_id: str,
+        agent_type: str,
+        capabilities: Iterable[str],
+        project_root: Optional[str] = None,
+        active_file: Optional[str] = None,
     ) -> None:
         self.id = agent_id
         self.type = agent_type
         self.status = AgentStatus.IDLE
         self.capabilities = list(capabilities)
+        self.project_root = project_root
+        self.active_file = active_file
         self.on_event: Optional[EventHandler] = None
 
+    @property
+    def display_label(self) -> str:
+        """Context-aware label for UI display.
+
+        Returns a label like "Claude: feature-x" when project context is
+        available, falling back to the agent id.
+        """
+        if not self.project_root:
+            return self.id
+        # Use the last path component as a short project name
+        project_name = self.project_root.rstrip("/").rsplit("/", 1)[-1]
+        return f"{self.type}: {project_name}"
+
     def as_dict(self) -> dict[str, object]:
-        return {
+        d: dict[str, object] = {
             "id": self.id,
             "type": self.type,
             "status": self.status.value,
             "capabilities": self.capabilities,
+            "project_root": self.project_root,
+            "active_file": self.active_file,
+            "display_label": self.display_label,
         }
+        return d
 
     async def _set_status(self, status: AgentStatus) -> None:
         self.status = status

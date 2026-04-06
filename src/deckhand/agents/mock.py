@@ -10,11 +10,18 @@ from deckhand.orchestrator.events import build_event
 class MockAgent(AgentBase):
     """Simulates a simple lifecycle with input gating."""
 
-    def __init__(self, agent_id: str) -> None:
+    def __init__(
+        self,
+        agent_id: str,
+        project_root: Optional[str] = None,
+        active_file: Optional[str] = None,
+    ) -> None:
         super().__init__(
             agent_id=agent_id,
             agent_type="mock",
             capabilities=["accepts_text", "cancellable"],
+            project_root=project_root,
+            active_file=active_file,
         )
         self._task: Optional[asyncio.Task[None]] = None
         self._input_event = asyncio.Event()

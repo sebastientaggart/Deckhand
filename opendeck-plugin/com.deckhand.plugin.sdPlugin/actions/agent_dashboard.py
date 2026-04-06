@@ -49,8 +49,8 @@ class AgentDashboardHandler:
         pass
 
     async def on_deckhand_event(self, ws: websockets.asyncio.client.ClientConnection, event_type: str, event: dict[str, Any], all_contexts: dict[str, dict[str, Any]]) -> None:
-        """Refresh dashboard on any agent status change."""
-        if event_type != "agent.status_changed":
+        """Refresh dashboard on any agent status or context change."""
+        if event_type not in ("agent.status_changed", "agent.context_changed"):
             return
 
         for context in list(self._contexts):

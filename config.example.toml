@@ -28,9 +28,6 @@ modules = [
 #   { key = "your-write-key-here", scope = "write" },
 #   { key = "your-read-key-here", scope = "read" },
 # ]
-#
-# Legacy single-key format (treated as write scope):
-# api_key = "your-secret-key"
 
 [rate_limit]
 # Maximum requests per minute per client IP (default: 60)

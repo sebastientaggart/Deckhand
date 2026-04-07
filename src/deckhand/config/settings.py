@@ -24,6 +24,8 @@ class Settings:
         self.config_file_path: str | None = None
         self.state_file_path: str | None = None
         self.rate_limit_rpm: int = 60
+        self.log_level: str = "INFO"
+        self.log_format: str = "plain"  # "plain" or "json"
 
         # Auth: list of {key, scope} dicts
         self._raw_api_keys: list[dict[str, str]] = []
@@ -90,6 +92,12 @@ class Settings:
             rl_config = config["rate_limit"]
             self.rate_limit_rpm = rl_config.get("rpm", self.rate_limit_rpm)
 
+        # Logging
+        if "logging" in config:
+            log_config = config["logging"]
+            self.log_level = log_config.get("level", self.log_level)
+            self.log_format = log_config.get("format", self.log_format)
+
     def _load_auth(self, auth_config: dict[str, Any]) -> None:
         """Parse the [auth] section."""
         if "api_keys" in auth_config:
@@ -130,3 +138,9 @@ class Settings:
                 self.rate_limit_rpm = int(rpm_str)
             except ValueError:
                 pass
+
+        if log_level := os.getenv("DECKHAND_LOG_LEVEL"):
+            self.log_level = log_level
+
+        if log_format := os.getenv("DECKHAND_LOG_FORMAT"):
+            self.log_format = log_format

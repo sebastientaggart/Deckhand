@@ -32,3 +32,9 @@ modules = [
 [rate_limit]
 # Maximum requests per minute per client IP (default: 60)
 # rpm = 60
+
+[logging]
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+# level = "INFO"
+# Log format: "plain" (human-readable) or "json" (structured, one record per line)
+# format = "plain"

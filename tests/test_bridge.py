@@ -225,6 +225,38 @@ async def test_health_endpoint(client: AsyncClient) -> None:
     assert data["state_store"]["writable"] is True
 
 
+async def test_metrics_endpoint(client: AsyncClient) -> None:
+    """GET /metrics returns operational counters and reflects activity."""
+    # Trigger some activity: one successful action and one failing action.
+    resp = await client.post("/actions/agent.start", json={"agent_id": "mock-1"})
+    assert resp.status_code == 200
+
+    resp = await client.post(
+        "/actions/agent.start",
+        json={},  # missing agent_id -> ValidationError
+    )
+    assert resp.status_code in (400, 422)
+
+    # Metrics is unauthenticated.
+    transport = ASGITransport(app=client._transport.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as no_auth:
+        resp = await no_auth.get("/metrics")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["uptime_seconds"] > 0
+    assert data["events"]["total"] >= 1
+    assert data["events"]["per_second"] >= 0
+    # At least the successful action ran; the failing one was rejected before
+    # the handler by payload validation, so only success is guaranteed.
+    assert data["actions"]["total"] >= 1
+    assert data["actions"]["success"] >= 1
+    assert "by_status" in data["agents"]
+    assert data["agents"]["count"] >= 2
+    assert data["websocket_clients"] == 0
+    assert "entry_count" in data["state_store"]
+
+
 async def test_agent_without_context_uses_id_as_label(client: AsyncClient) -> None:
     """An agent with no project_root falls back to its ID for display_label."""
     resp = await client.post(

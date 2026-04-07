@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from deckhand.agents.base import AgentBase
+from deckhand.metrics import Metrics
 from deckhand.orchestrator.events import EventBus
 from deckhand.orchestrator.state import StateStore
 
@@ -10,9 +11,14 @@ from deckhand.orchestrator.state import StateStore
 class Orchestrator:
     """Tracks agent lifecycle and routes commands to agents."""
 
-    def __init__(self, state_persist_path: str | None = None) -> None:
+    def __init__(
+        self,
+        state_persist_path: str | None = None,
+        metrics: Metrics | None = None,
+    ) -> None:
         self.agents: dict[str, AgentBase] = {}
-        self.event_bus = EventBus()
+        self.metrics = metrics
+        self.event_bus = EventBus(metrics=metrics)
         self.state_store = StateStore(self.event_bus, persist_path=state_persist_path)
 
     def register_agent(self, agent: AgentBase) -> None:

@@ -23,6 +23,7 @@ from starlette.responses import JSONResponse
 from deckhand.agents.mock import MockAgent
 from deckhand.config.settings import Settings
 from deckhand.logging_config import configure_logging
+from deckhand.metrics import Metrics
 from deckhand.orchestrator.actions import ActionRegistry
 from deckhand.orchestrator.events import build_error_event, build_event
 from deckhand.orchestrator.manager import Orchestrator
@@ -46,6 +47,7 @@ signal_registry: SignalRegistry | None = None
 plugin_registry: PluginRegistry | None = None
 settings: Settings | None = None
 rate_limiter: RateLimiter | None = None
+metrics: Metrics | None = None
 _service_start_time: float | None = None
 
 SERVICE_VERSION = "0.3.0"
@@ -61,9 +63,11 @@ async def lifespan(app: FastAPI):
         plugin_registry, \
         settings, \
         rate_limiter, \
+        metrics, \
         _service_start_time
 
     _service_start_time = time.time()
+    metrics = Metrics(started_at=_service_start_time)
 
     # Startup — load settings first so we can configure logging from them
     settings = Settings()
@@ -93,7 +97,10 @@ async def lifespan(app: FastAPI):
     rate_limiter = RateLimiter(settings.rate_limit_rpm)
 
     # Initialize orchestrator
-    orchestrator = Orchestrator(state_persist_path=settings.state_file_path)
+    orchestrator = Orchestrator(
+        state_persist_path=settings.state_file_path,
+        metrics=metrics,
+    )
     orchestrator.register_agent(
         MockAgent(agent_id="mock-1", project_root="/home/dev/project-alpha")
     )
@@ -102,8 +109,8 @@ async def lifespan(app: FastAPI):
     )
 
     # Initialize registries
-    action_registry = ActionRegistry(orchestrator)
-    signal_registry = SignalRegistry()
+    action_registry = ActionRegistry(orchestrator, metrics=metrics)
+    signal_registry = SignalRegistry(metrics=metrics)
     plugin_registry = PluginRegistry(
         actions=action_registry,
         signals=signal_registry,
@@ -296,6 +303,36 @@ async def health() -> dict[str, object]:
             "writable": state_store.is_writable(),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Metrics (unauthenticated)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/metrics")
+async def metrics_endpoint() -> dict[str, object]:
+    """Operational metrics snapshot. Unauthenticated for monitoring."""
+    if orchestrator is None or metrics is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    snapshot = metrics.snapshot()
+
+    agents = list(orchestrator.list_agents())
+    status_counts: dict[str, int] = {}
+    for agent in agents:
+        status = agent.status.value
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    snapshot["websocket_clients"] = orchestrator.event_bus.client_count
+    snapshot["agents"] = {
+        "count": len(agents),
+        "by_status": status_counts,
+    }
+    snapshot["state_store"] = {
+        "entry_count": orchestrator.state_store.entry_count(),
+    }
+    return snapshot
 
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,28 @@ class StateStore:
         # Load persisted state on init
         if self._persist_path:
             self._load()
+
+    @property
+    def persist_path(self) -> str | None:
+        return str(self._persist_path) if self._persist_path else None
+
+    def entry_count(self) -> int:
+        self._purge_expired()
+        return len(self._state)
+
+    def is_writable(self) -> bool:
+        """Whether the state store can persist writes.
+
+        Returns True if no persist path is configured (in-memory is always
+        writable), or if the configured persist path's parent directory
+        exists and is writable.
+        """
+        if self._persist_path is None:
+            return True
+        parent = self._persist_path.parent
+        if not parent.exists():
+            return False
+        return os.access(parent, os.W_OK)
 
     def list_state(self) -> list[dict[str, Any]]:
         self._purge_expired()

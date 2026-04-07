@@ -88,6 +88,10 @@ class EventBus:
     def __init__(self) -> None:
         self._subscribers: set[WebSocket] = set()
 
+    @property
+    def client_count(self) -> int:
+        return len(self._subscribers)
+
     async def subscribe(self, websocket: WebSocket, *, accept: bool = True) -> None:
         if accept:
             await websocket.accept()

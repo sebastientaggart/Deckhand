@@ -207,6 +207,24 @@ async def test_update_agent_context_not_found(client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_health_endpoint(client: AsyncClient) -> None:
+    """GET /health returns service health info and does not require auth."""
+    transport = ASGITransport(app=client._transport.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as no_auth:
+        resp = await no_auth.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "version" in data
+    assert data["uptime_seconds"] >= 0
+    assert data["websocket_clients"] == 0
+    assert data["agents"]["count"] >= 2
+    assert "mock-1" in data["agents"]["statuses"]
+    assert data["plugins"]["actions"] > 0
+    assert "entry_count" in data["state_store"]
+    assert data["state_store"]["writable"] is True
+
+
 async def test_agent_without_context_uses_id_as_label(client: AsyncClient) -> None:
     """An agent with no project_root falls back to its ID for display_label."""
     resp = await client.post(

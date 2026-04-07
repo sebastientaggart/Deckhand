@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import (
@@ -45,6 +46,9 @@ signal_registry: SignalRegistry | None = None
 plugin_registry: PluginRegistry | None = None
 settings: Settings | None = None
 rate_limiter: RateLimiter | None = None
+_service_start_time: float | None = None
+
+SERVICE_VERSION = "0.3.0"
 
 
 @asynccontextmanager
@@ -56,7 +60,10 @@ async def lifespan(app: FastAPI):
         signal_registry, \
         plugin_registry, \
         settings, \
-        rate_limiter
+        rate_limiter, \
+        _service_start_time
+
+    _service_start_time = time.time()
 
     # Startup — load settings first so we can configure logging from them
     settings = Settings()
@@ -119,7 +126,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Deckhand service...")
 
 
-app = FastAPI(title="Deckhand", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Deckhand", version=SERVICE_VERSION, lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +254,48 @@ class SignalPayload(BaseModel):
     """Wrapper for signal webhook payloads."""
 
     payload: dict[str, object] = {}
+
+
+# ---------------------------------------------------------------------------
+# Health check (unauthenticated)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/health")
+async def health() -> dict[str, object]:
+    """Service health check. Unauthenticated for monitoring/orchestration."""
+    if (
+        orchestrator is None
+        or action_registry is None
+        or signal_registry is None
+        or settings is None
+        or _service_start_time is None
+    ):
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    agents = orchestrator.list_agents()
+    state_store = orchestrator.state_store
+
+    return {
+        "status": "ok",
+        "version": SERVICE_VERSION,
+        "uptime_seconds": time.time() - _service_start_time,
+        "websocket_clients": orchestrator.event_bus.client_count,
+        "agents": {
+            "count": len(agents),
+            "statuses": {a.id: a.status.value for a in agents},
+        },
+        "plugins": {
+            "modules": list(settings.plugin_modules),
+            "actions": len(action_registry.list_actions()),
+            "signals": len(signal_registry.list_signals()),
+        },
+        "state_store": {
+            "entry_count": state_store.entry_count(),
+            "persist_path": state_store.persist_path,
+            "writable": state_store.is_writable(),
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

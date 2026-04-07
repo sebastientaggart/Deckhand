@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable, Protocol
 
+from deckhand.metrics import Metrics
 from deckhand.orchestrator.metadata import ActionMetadata
 
 
@@ -19,8 +20,13 @@ ActionHandler = Callable[[dict[str, object]], Awaitable[None]]
 class ActionRegistry:
     """Maps named actions to orchestrator commands."""
 
-    def __init__(self, orchestrator: OrchestratorActions) -> None:
+    def __init__(
+        self,
+        orchestrator: OrchestratorActions,
+        metrics: Metrics | None = None,
+    ) -> None:
         self._orchestrator = orchestrator
+        self._metrics = metrics
         self._actions: dict[str, ActionHandler] = {}
         self._metadata: dict[str, ActionMetadata] = {}
         self._register_defaults()
@@ -44,7 +50,14 @@ class ActionRegistry:
         handler = self._actions.get(name)
         if handler is None:
             raise KeyError(name)
-        await handler(payload)
+        try:
+            await handler(payload)
+        except Exception:
+            if self._metrics is not None:
+                self._metrics.record_action(success=False)
+            raise
+        if self._metrics is not None:
+            self._metrics.record_action(success=True)
 
     def list_actions(self) -> list[ActionMetadata]:
         """List all registered actions with metadata."""

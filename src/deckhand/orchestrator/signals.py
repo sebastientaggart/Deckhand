@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
+from deckhand.metrics import Metrics
 from deckhand.orchestrator.metadata import SignalMetadata
 
 
@@ -11,9 +12,10 @@ SignalHandler = Callable[[dict[str, object]], Awaitable[None]]
 class SignalRegistry:
     """Maps named signals to handlers."""
 
-    def __init__(self) -> None:
+    def __init__(self, metrics: Metrics | None = None) -> None:
         self._signals: dict[str, SignalHandler] = {}
         self._metadata: dict[str, SignalMetadata] = {}
+        self._metrics = metrics
 
     def register(
         self,
@@ -35,6 +37,8 @@ class SignalRegistry:
         if handler is None:
             raise KeyError(name)
         await handler(payload)
+        if self._metrics is not None:
+            self._metrics.record_signal(name)
 
     def list_signals(self) -> list[SignalMetadata]:
         """List all registered signals with metadata."""

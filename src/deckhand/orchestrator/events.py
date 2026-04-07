@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from deckhand.metrics import Metrics
 from deckhand.orchestrator.schemas import EventEnvelope, EventSource
 
 
@@ -85,8 +86,9 @@ def build_error_event(
 class EventBus:
     """In-memory pub/sub for Deckhand events."""
 
-    def __init__(self) -> None:
+    def __init__(self, metrics: Metrics | None = None) -> None:
         self._subscribers: set[WebSocket] = set()
+        self._metrics = metrics
 
     @property
     def client_count(self) -> int:
@@ -123,6 +125,9 @@ class EventBus:
             or "id" not in event.get("source", {})
         ):
             raise ValueError("Event source must have 'kind' and 'id' fields")
+
+        if self._metrics is not None:
+            self._metrics.record_event()
 
         dead: list[WebSocket] = []
         for websocket in self._subscribers:

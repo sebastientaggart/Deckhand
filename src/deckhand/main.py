@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
     )
 
     # Load plugins
-    load_plugins(settings.plugin_modules, plugin_registry)
+    load_plugins(settings.plugin_specs, plugin_registry)
     logger.info(
         f"Loaded {len(action_registry.list_actions())} actions and {len(signal_registry.list_signals())} signals"
     )

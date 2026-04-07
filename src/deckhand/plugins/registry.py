@@ -18,4 +18,4 @@ class PluginRegistry:
     signals: SignalRegistry
     state: StateStore
     events: EventBus
-    orchestrator: "Orchestrator"
+    orchestrator: "Orchestrator | None"

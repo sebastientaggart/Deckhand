@@ -7,9 +7,39 @@ import os
 from typing import Any
 
 from deckhand.config.loader import load_config
+from deckhand.plugins.capabilities import VALID_CAPABILITIES, PluginSpec
 from deckhand.security import ApiKeyEntry, generate_api_key
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_plugin_entry(entry: Any) -> PluginSpec:
+    """Parse a single plugin config entry into a PluginSpec.
+
+    Accepts either a bare module path string (defaults to ``full``
+    capability) or a dict with ``module`` and optional ``capability``.
+    Supports ``"module:capability"`` shorthand for env-var usage.
+    """
+    if isinstance(entry, PluginSpec):
+        return entry
+    if isinstance(entry, str):
+        if ":" in entry:
+            module, _, cap = entry.partition(":")
+            capability = cap or "full"
+        else:
+            module, capability = entry, "full"
+        if capability not in VALID_CAPABILITIES:
+            raise ValueError(f"Invalid plugin capability '{capability}' for {module}")
+        return PluginSpec(module=module, capability=capability)  # type: ignore[arg-type]
+    if isinstance(entry, dict):
+        module = entry.get("module")
+        if not module or not isinstance(module, str):
+            raise ValueError("Plugin entry dict requires a 'module' key")
+        capability = entry.get("capability", "full")
+        if capability not in VALID_CAPABILITIES:
+            raise ValueError(f"Invalid plugin capability '{capability}' for {module}")
+        return PluginSpec(module=module, capability=capability)
+    raise ValueError(f"Unsupported plugin entry: {entry!r}")
 
 
 class Settings:
@@ -20,7 +50,9 @@ class Settings:
         self.service_name = "deckhand"
         self.host = "127.0.0.1"
         self.port = 8000
-        self.plugin_modules = ["deckhand.plugins.builtin"]
+        self.plugin_specs: list[PluginSpec] = [
+            PluginSpec(module="deckhand.plugins.builtin", capability="full")
+        ]
         self.config_file_path: str | None = None
         self.state_file_path: str | None = None
         self.rate_limit_rpm: int = 60
@@ -54,6 +86,11 @@ class Settings:
             for k in self._raw_api_keys
         ]
 
+    @property
+    def plugin_modules(self) -> list[str]:
+        """Backwards-compatible view: just the module paths."""
+        return [spec.module for spec in self.plugin_specs]
+
     # ------------------------------------------------------------------
     # Config file loading
     # ------------------------------------------------------------------
@@ -74,7 +111,7 @@ class Settings:
             plugin_config = config["plugins"]
             modules = plugin_config.get("modules")
             if modules:
-                self.plugin_modules = modules
+                self.plugin_specs = [_parse_plugin_entry(m) for m in modules]
 
         # Path settings
         if "paths" in config:
@@ -122,8 +159,10 @@ class Settings:
             self.config_file_path = config_file
 
         if plugins_str := os.getenv("DECKHAND_PLUGINS"):
-            self.plugin_modules = [
-                p.strip() for p in plugins_str.split(",") if p.strip()
+            self.plugin_specs = [
+                _parse_plugin_entry(p.strip())
+                for p in plugins_str.split(",")
+                if p.strip()
             ]
 
         if state_file := os.getenv("DECKHAND_STATE_FILE"):

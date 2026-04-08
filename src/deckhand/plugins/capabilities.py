@@ -105,11 +105,25 @@ class ScopedSignalRegistry:
 
 
 class ScopedStateStore:
-    """StateStore proxy that enforces a capability level."""
+    """StateStore proxy that enforces a capability level.
+
+    This wrapper deliberately exposes an **explicit allow-list** of
+    ``StateStore`` methods. There is no ``__getattr__`` fallback: any new
+    method added to ``StateStore`` is invisible to plugins until it is
+    explicitly proxied here with the appropriate capability check. This
+    ensures that future write-capable methods (e.g. ``bulk_set``, ``purge``)
+    cannot silently be reached by ``read-only`` plugins.
+
+    When adding a new ``StateStore`` method, decide whether it is a read or
+    a write operation and add a corresponding proxy method below. Write
+    operations must guard against ``read-only`` via ``_deny``.
+    """
 
     def __init__(self, inner: StateStore, capability: Capability) -> None:
         self._inner = inner
         self._capability = capability
+
+    # --- read operations (allowed for all capability levels) ---
 
     def list_state(self) -> list[dict[str, Any]]:
         return self._inner.list_state()
@@ -117,8 +131,13 @@ class ScopedStateStore:
     def entry_count(self) -> int:
         return self._inner.entry_count()
 
+    def get_state(self, key: str) -> dict[str, Any] | None:
+        return self._inner.get_state(key)
+
     def is_writable(self) -> bool:
         return self._capability != "read-only" and self._inner.is_writable()
+
+    # --- write operations (denied for read-only) ---
 
     async def set_state(self, *args: Any, **kwargs: Any) -> Any:
         if self._capability == "read-only":
@@ -129,15 +148,6 @@ class ScopedStateStore:
         if self._capability == "read-only":
             raise _deny(self._capability, "write state")
         return await self._inner.clear_state(*args, **kwargs)
-
-    def get_state(self, key: str) -> dict[str, Any] | None:
-        return self._inner.get_state(key)
-
-    def __getattr__(self, name: str) -> Any:
-        # Delegate any additional read helpers on StateStore
-        if name.startswith("_"):
-            raise AttributeError(name)
-        return getattr(self._inner, name)
 
 
 class ScopedEventBus:

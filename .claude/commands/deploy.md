@@ -39,7 +39,7 @@ If no tag exists, note this is the first release.
 ### Read current version
 
 ```bash
-node -p \"require('./package.json').version\
+make version
 ```
 
 ### Show commits since last tag

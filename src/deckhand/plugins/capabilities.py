@@ -11,7 +11,8 @@ Capabilities (cumulative):
   orchestrator.
 - ``state-only``: everything in ``read-only`` plus state mutation, signal
   registration, and event emission. No orchestrator access and cannot
-  register actions (which by definition drive orchestrator commands).
+  register *or invoke* actions (which by definition drive orchestrator
+  commands).
 - ``full``: unrestricted access, equivalent to the raw ``PluginRegistry``.
 """
 
@@ -65,7 +66,7 @@ class ScopedActionRegistry:
         self._inner.register(name, handler, description, payload_schema)
 
     async def run(self, name: str, payload: dict[str, object]) -> None:
-        if self._capability == "read-only":
+        if self._capability != "full":
             raise _deny(self._capability, "run actions")
         await self._inner.run(name, payload)
 

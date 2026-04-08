@@ -55,6 +55,28 @@ async def test_read_only_denies_all_writes(
         await scoped.actions.run("agent.start", {"agent_id": "mock-1"})
 
 
+async def test_scoped_state_store_has_no_getattr_fallback(
+    plugin_registry: PluginRegistry,
+) -> None:
+    """ScopedStateStore must expose only its explicit allow-list.
+
+    If a future write-capable method is added to StateStore, it must not be
+    silently reachable through the scoped wrapper — plugins should get an
+    AttributeError until the method is explicitly proxied with the right
+    capability check. This test pins that contract.
+    """
+    scoped = build_scoped_registry(plugin_registry, "read-only")
+
+    # Simulate a hypothetical future write method on the underlying store.
+    async def bulk_set(entries: dict[str, object]) -> None:  # pragma: no cover
+        raise AssertionError("should not be reachable via scoped store")
+
+    plugin_registry.state.bulk_set = bulk_set  # type: ignore[attr-defined]
+
+    with pytest.raises(AttributeError):
+        _ = scoped.state.bulk_set  # type: ignore[attr-defined]
+
+
 async def test_state_only_allows_state_and_signals_but_not_actions(
     plugin_registry: PluginRegistry,
 ) -> None:

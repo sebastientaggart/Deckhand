@@ -101,6 +101,11 @@ async def test_state_only_allows_state_and_signals_but_not_actions(
     with pytest.raises(PermissionError):
         scoped.actions.register("evil.action", noop)
 
+    # Action invocation also denied — state-only must not reach orchestrator
+    # commands via the action layer.
+    with pytest.raises(PermissionError):
+        await scoped.actions.run("agent.start", {"agent_id": "mock-1"})
+
 
 async def test_load_plugins_with_spec(plugin_registry: PluginRegistry) -> None:
     load_plugins(

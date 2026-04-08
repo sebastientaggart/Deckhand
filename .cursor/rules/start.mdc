@@ -38,16 +38,15 @@ The argument string may contain optional inline flags after the description. Par
 After parsing flags, determine the active labels in this order:
 
 1. **Per-invocation flag** — if `--label <value>` was in `$ARGUMENTS`, use that value verbatim. Skip all remaining steps.
-2. **Pool-based selection** — no label pool is configured. Fall through to step 3.
+2. **Pool-based selection** — the allowed label pool is: `bug,documentation,duplicate,enhancement,good first issue,help wanted,invalid,question,wontfix,security` (comma-separated). Select 1–3 labels from this pool that genuinely fit the task description and implementation approach. Do not apply labels mechanically — pick only what fits. If no pool label fits the task, fall through to step 3.
+   - If any selected label name contains a space (e.g. `good first issue`), quote the entire `--label` value.
 3. **No label / creation** — if the pool is empty or no pool label fits:
-   - If `{{TICKET_LABEL_CREATION_ALLOWED}}` is `true` (case-insensitive string match): the agent **may** create a new label before applying it:
+   - If `false` is `true` (case-insensitive string match): the agent **may** create a new label before applying it:
      ```bash
      gh label create "<name>" --color "<hex>" --description "<short description>"
      ```
      Use judgment — only create a label with clear reuse value. Do not create near-duplicates of existing pool labels.
-   - If `{{TICKET_LABEL_CREATION_ALLOWED}}` is `false` or unset: omit `--label` entirely. Proceed silently; do not inform the user.
-
-> **Tip:** Run `/setup` to populate TICKET_LABELS from your repo's existing GitHub labels.
+   - If `false` is `false` or unset: omit `--label` entirely. Proceed silently; do not inform the user.
 
 **Milestone resolution (three-tier, Case A only):**
 
@@ -67,7 +66,7 @@ After parsing flags, determine the active milestone in this order:
 
 | `$ARGUMENTS` | Description | Labels | Milestone |
 |---|---|---|---|
-| `Add dark mode toggle to settings page` | `Add dark mode toggle to settings page` | none (no label pool) | auto-detected |
+| `Add dark mode toggle to settings page` | `Add dark mode toggle to settings page` | auto-selected from pool | auto-detected |
 | `Add dark mode --label enhancement` | `Add dark mode` | `enhancement` (verbatim) | auto-detected |
 | `Add dark mode --label enhancement,ux --milestone "Sprint 4"` | `Add dark mode` | `enhancement,ux` (verbatim) | `Sprint 4` |
 
@@ -86,6 +85,8 @@ Read the relevant code. Propose a concrete implementation approach. Be specific 
 Say exactly: **"Does this approach sound right? I'll create a GitHub issue and branch before writing any code."**
 
 Stop. Wait for the user to confirm.
+
+The friendly text question is required regardless of harness mode. If your harness is currently in a preview / plan / dry-run mode where you cannot passively stop and wait (and must instead invoke the harness's own approval mechanism), still include the text question in your response. The harness's approval UI mediates the wait, but it is not a substitute for the question itself. Users expect to see the consistent text language across all modes; do not silently swap it for the harness's UI.
 
 - User says yes → continue to Step 3.
 - User redirects → revise approach, ask again.
@@ -137,6 +138,8 @@ Now create the feature branch:
 ```bash
 gh issue develop <number> --name feature/<short-descriptive-name> --checkout
 ```
+
+> `--base` is required when `BRANCH_DEV` is set: `gh issue develop` reads the default base from the GitHub API, not from local working state, so `git checkout {{BRANCH_DEV}}` on its own does not influence which branch the new feature branch is cut from.
 
 Verify the branch was created:
 
@@ -196,6 +199,8 @@ Find and check out the existing branch, or create a new one linked to the issue:
 gh issue develop <number> --name feature/<short-name> --checkout
 ```
 
+> `--base` is required when `BRANCH_DEV` is set: `gh issue develop` reads the default base from the GitHub API, not from local working state.
+
 Verify:
 
 ```bash
@@ -224,6 +229,6 @@ When done, say: **"The code is ready for review. Please run `make dev` and test 
 - If already on a feature branch when `/start` is invoked, warn the user before creating another branch.
 - `gh issue create` must use `--title` and `--body` flags. Never open an interactive editor.
 - The issue is assigned to `@me` at creation. If you are creating a ticket on someone else's behalf, remove the assignee after creation with `gh issue edit <number> --remove-assignee @me`.
-- Apply labels only when explicitly provided via `--label`. No label pool is configured.
+- Apply resolved labels and milestone to every new issue. Label resolution order: per-invocation flag → pool selection from `bug,documentation,duplicate,enhancement,good first issue,help wanted,invalid,question,wontfix,security` → omit (or create if `false` is `true`). Never apply a label not in `bug,documentation,duplicate,enhancement,good first issue,help wanted,invalid,question,wontfix,security` unless `false` is `true`.
 - Milestone resolution order: per-invocation flag → auto-detected from GitHub open milestones. Never prompt for a milestone more than once per invocation.
-<!-- generated by CodeCannon/sync.sh | skill: start | adapter: cursor | hash: eabc06ca | DO NOT EDIT — run CodeCannon/sync.sh to regenerate -->
+<!-- generated by CodeCannon/sync.sh | skill: start | adapter: cursor | hash: 8e8ac0d0 | DO NOT EDIT — run CodeCannon/sync.sh to regenerate -->
